@@ -2366,7 +2366,7 @@ Ntuplizer::beginJob()
     outputTree->Branch("HLT_Mu50",&HLT_Mu50,"HLT_Mu50/O");
     outputTree->Branch("HLT_Mu50_L1SingleMuShower",&HLT_Mu50_L1SingleMuShower,"HLT_Mu50_L1SingleMuShower/O");
     
-
+    outputTree->Branch("HLT_Photon200",&HLT_Photon200,"HLT_Photon200/O");
 
     outputTree->Branch("HLT_PFMETNoMu120_PFMHTNoMu120_IDTight_PFHT60",&HLT_PFMETNoMu120_PFMHTNoMu120_IDTight_PFHT60,"HLT_PFMETNoMu120_PFMHTNoMu120_IDTight_PFHT60/O");
     outputTree->Branch("HLT_PFMETNoMu120_PFMHTNoMu120_IDTight",&HLT_PFMETNoMu120_PFMHTNoMu120_IDTight,"HLT_PFMETNoMu120_PFMHTNoMu120_IDTight/O");
@@ -3518,7 +3518,7 @@ bool Ntuplizer::PassSkim(){
   }
 
   return true; 
-  }
+}
 
 void
 Ntuplizer::CalcDileptonInfo(const int& i, const int& j, Float_t & themass, Float_t & theptll, Float_t & thepzll,  Float_t & theyll, Float_t & thephill, Float_t & thedphill, Float_t & thecosthll){

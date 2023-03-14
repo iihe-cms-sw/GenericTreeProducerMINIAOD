@@ -353,7 +353,7 @@ if skim == "L1Study_ZToMuMu" or skim == "L1Study_ZToEE":
     process.ntuplizer.AK8JetPtCut=cms.double(20000)
     process.ntuplizer.PhotonPtCut=cms.double(20000)
     process.ntuplizer.ElectronPtCut=cms.double(10)
-    process.ntuplizer.MuonPtCut=cms.double(5)
+    process.ntuplizer.MuonPtCut=cms.double(3)
     process.ntuplizer.ApplyPhotonID=cms.bool(False)
     process.ntuplizer.SaveAK8Jets=cms.bool(False)
     process.ntuplizer.SaveCaloJets=cms.bool(False)
