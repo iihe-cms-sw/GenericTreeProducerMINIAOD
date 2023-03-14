@@ -5,6 +5,7 @@ iscrab = False
 
 skims = ['', 'MCJECs', 'ZJetsResiduals', 'MCJECs', 'HFJet', 'L1Unprefirable', 'L1Study', 'L1Study_ZToMuMu', 'L1Study_ZToEE', 'L1Study_SingleMuforJME', 'L1Studies_EphemeralHLTPhysics,', 'L1Studies_EphemeralZeroBias', 'L1Study_SinglePhotonforJME', 'FourLeptons', 'skimTriggerSOS']
 eras = ['DataUL2016', 'DataUL2017', 'DataUL2018', 'DataRun3', 'MCUL2016', 'MCUL2017', 'MCUL2018', 'MCRun3']
+datasets = ['', 'SingleMuon', 'Muon', 'DoubleMuon', 'MuonEG', 'SingleElectron', 'SinglePhoton', 'DoubleEG', 'EGamma', 'JetHT', 'MET', 'JetMET', 'Tau', 'ZeroBias', 'HLTPhysics', 'EphemeralZeroBias', 'EphemeralHLTPhysics']
 
 skim = ''
 runera = 'MCRun3'
@@ -16,7 +17,7 @@ options.register('skim', '', VarParsing.VarParsing.multiplicity.singleton, VarPa
 options.register('dataset', '', VarParsing.VarParsing.multiplicity.singleton, VarParsing.VarParsing.varType.string, "dataset")
 options.register('inputfiles', '', VarParsing.VarParsing.multiplicity.singleton, VarParsing.VarParsing.varType.string, "inputfiles")
 
-options.inputFiles = 'file1.root', 'file2.root'
+options.inputfiles = 'file1.root', 'file2.root'
 options.runera = 'DataRun3'
 options.maxEvents = -1
 options.parseArguments()
@@ -44,10 +45,16 @@ print("runera is ", runera)
 for i in eras: 
     if i in runera:
         find_runera = True
-
 if not find_runera:
     print("Undefined era")
     exit()
+
+#Make sure the skim exists
+if dataset not in datasets:
+    print("Undefined dataset")
+    exit()
+
+
 
 print("Skim is: ", skim)
 print("Era is: ", runera)
@@ -87,7 +94,7 @@ lines = []
 
 process.source = cms.Source("PoolSource",
                             fileNames = cms.untracked.vstring(
-                                options.inputFiles
+                                options.inputfiles
                             )
                         )
 
