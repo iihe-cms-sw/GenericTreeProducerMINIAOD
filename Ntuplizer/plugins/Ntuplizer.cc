@@ -2339,6 +2339,14 @@ Ntuplizer::beginJob()
     outputTree->Branch("_jethfadjacentEtaStripsSize",&_jethfadjacentEtaStripsSize);
 
     
+    outputTree->Branch("_puppijetEta",&_puppijetEta);
+    outputTree->Branch("_puppijetPhi",&_puppijetPhi);
+    outputTree->Branch("_puppijetPt",&_puppijetPt);
+    outputTree->Branch("_puppijetRawPt",&_puppijetRawPt);
+    outputTree->Branch("_puppijetLeptonPhotonCleaned",&_puppijetLeptonPhotonCleaned);
+    outputTree->Branch("_puppijetPassID",&_puppijetPassID);
+    outputTree->Branch("_puppijetPtNoL2L3Res",&_puppijetPtNoL2L3Res);
+
 
     outputTree->Branch("Flag_IsUnprefirable",&Flag_IsUnprefirable,"Flag_IsUnprefirable/O");
     outputTree->Branch("Flag_goodVertices",&Flag_goodVertices,"Flag_goodVertices/O");

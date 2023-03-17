@@ -110,14 +110,13 @@ process.load("Geometry.CMSCommonData.cmsIdealGeometryXML_cfi")
 process.load('Configuration.StandardSequences.Reconstruction_cff')
 
 chsJetCollectionName ="slimmedJets"
+puppiJetCollectionName ="updatedPatJetsUpdatedJECPuppi"
 
 if reclusterCHSJets: 
     chsJetCollectionName ="selectedPatJetsCHS"
 else: 
     chsJetCollectionName ="updatedPatJetsUpdatedJEC"
-
-#temporary bypass
-chsJetCollectionName ="slimmedJets"
+    
 
 if reclusterGenJets:
     GenJetCollectionName="ak4GenJetsNoNuNEW"
@@ -167,7 +166,7 @@ if "DataUL2018" in runera:
     rochesterCorrectionFile+="RoccoR2018UL.txt"
 
 if "DataRun3" in runera:
-    process.GlobalTag.globaltag="123X_dataRun3_Prompt_v12" #Run 3
+    process.GlobalTag.globaltag="124X_dataRun3_Prompt_v10" #Run 3
     EleVetoWP='cutBasedElectronID-Fall17-94X-V2-veto'
     EleTightWP='mvaEleID-Fall17-iso-V2-wp90'
     EleLooseWP='mvaEleID-Fall17-iso-V2-wpHZZ'
@@ -235,7 +234,7 @@ process.ntuplizer = cms.EDAnalyzer('Ntuplizer',
                                    Jets=cms.InputTag(chsJetCollectionName),
                                    JetsAK8=cms.InputTag("selectedPatJetsAK8CHS"),
                                    #JetsPuppi=cms.InputTag("updatedPatJetsUpdatedJECPuppi"),
-                                   JetsPuppi=cms.InputTag("slimmedJetsPuppi"),
+                                   JetsPuppi=cms.InputTag("puppiJetCollectionName"),
                                    JetsPuppiAK8=cms.InputTag("slimmedJetsAK8"),
                                    JetsCalo=cms.InputTag("slimmedCaloJets"),
                                    JetsPFnoCHS=cms.InputTag("selectedPatJetsPlain"),
@@ -863,7 +862,7 @@ if ismc and reclusterGenJets:
 
 
 #You may want to comment out some of the following lines to speed things up
-#process.ApplyPatAlgos  = cms.Path(process.patAlgosToolsTask)
+process.ApplyPatAlgos  = cms.Path(process.patAlgosToolsTask)
 
 #process.rerunmetfilters = cms.Path( process.ecalBadCalibReducedMINIAOD2019Filter * process.ecalLaserCorrFilter * process.ecalDeadCellBoundaryEnergyFilterUpdate * process.BadChargedCandidateFilterUpdate ) 
 #process.computepuid = cms.Path(process.pileupJetIdUpdate  * process.pileupJetIdUpdate2017 * process.pileupJetIdUpdate2018)
