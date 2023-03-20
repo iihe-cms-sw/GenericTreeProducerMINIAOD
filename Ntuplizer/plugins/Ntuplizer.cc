@@ -670,6 +670,8 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   vector <Float_t> _L1eg_phi;
   vector <int> _L1eg_bx;
   vector <int> _L1eg_iso;
+  //vector <int> _L1eg_isoet;  //not stored for unpacked objects, only relevant when analyzing reemulated objects. 
+  //vector <int> _L1eg_ntt; //same remark
 
   //L1 jet
   vector <Float_t> _L1jet_pt;
@@ -690,7 +692,13 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   vector <Float_t> _L1etsum_mht;
   vector <Float_t> _L1etsum_mht_phi;
   vector <Float_t> _L1etsum_ht;
+  vector <Float_t> _L1etsum_TTcount;
   vector <Int_t> _L1etsum_bx;
+
+  vector <Float_t>_L1etsum_etemtot;
+  vector <Float_t>_L1etsum_etm;
+  vector <Float_t>_L1etsum_etm_phi;
+  vector <Float_t>_L1etsum_ettot;
 
   //Rochester correction (for muons)
   RoccoR rc; 
@@ -1064,10 +1072,14 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       _L1eg_phi.push_back( l1egit->phi() );
       _L1eg_bx.push_back( i);
       _L1eg_iso.push_back( l1egit->hwIso());
+      //_L1eg_isoet.push_back( l1egit->isoEt()); //not stored for unpacked objects, only relevant when analyzing reemulated objects.
+      //_L1eg_ntt.push_back( l1egit->nTT());//same remark
 
-      //      cout << "L1EG pt, eta, phi: "<<l1egit->pt() <<", "<<l1egit->eta() <<", " <<l1egit->phi() <<", "  <<endl;
-      //cout << "L1EG hwIso, hwQual, hwEta:  "<< l1egit->hwIso() <<", " <<l1egit->hwQual() <<", " <<l1egit->hwEta() <<", " <<endl; 
-
+      /*
+      cout << "L1EG pt, eta, phi: "<<l1egit->pt() <<", "<<l1egit->eta() <<", " <<l1egit->phi() <<", "  <<endl;
+      cout << "L1EG hwIso, hwQual, hwEta:  "<< l1egit->hwIso() <<", " <<l1egit->hwQual() <<", " <<l1egit->hwEta() <<", " <<endl; 
+      cout << "NTT, isoet " << l1egit->nTT() <<", " << l1egit->isoEt()<<endl;
+      */
       if(i==0){
 	if(l1egit->pt() > l1eg_leadingpt){
 	  l1eg_subleadingpt = l1eg_leadingpt ; l1eg_leadingpt = l1egit->pt(); 
@@ -1116,6 +1128,23 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       if(l1t::EtSum::EtSumType::kTotalHt == it->getType()){
 	_L1etsum_ht.push_back( it->pt());
       }
+      if(l1t::EtSum::EtSumType::kMissingEt == it->getType()){
+        _L1etsum_etm.push_back( it->pt());
+        _L1etsum_etm_phi.push_back( it->phi());
+      }
+      if(l1t::EtSum::EtSumType::kTotalEtEm == it->getType()){
+	_L1etsum_etemtot.push_back( it->pt());
+      }
+      if(l1t::EtSum::EtSumType::kTotalEt == it->getType()){
+	_L1etsum_ettot.push_back( it->pt());
+      }
+
+
+      if(l1t::EtSum::EtSumType::kTowerCount == it->getType()){
+	_L1etsum_TTcount.push_back( it->hwPt()); //Mind that, I think, one should use hwPt here !
+      }
+      //if(l1t::EtSum::EtSumType::kTowerCount == it->getType())cout << "kTowerCount: "<< it->hwPt() <<", " << it->pt() <<endl;
+      
     }
   }
 
@@ -2118,8 +2147,15 @@ Ntuplizer::beginJob()
     outputTree->Branch("_L1etsum_etmhf_phi", &_L1etsum_etmhf_phi);
     outputTree->Branch("_L1etsum_mht", &_L1etsum_mht);
     outputTree->Branch("_L1etsum_mht_phi", &_L1etsum_mht_phi);
+    
     outputTree->Branch("_L1etsum_ht", &_L1etsum_ht);
+    outputTree->Branch("_L1etsum_TTcount", &_L1etsum_TTcount);
     outputTree->Branch("_L1etsum_bx", &_L1etsum_bx);
+    outputTree->Branch("_L1etsum_etemtot", &_L1etsum_etemtot);
+    outputTree->Branch("_L1etsum_etm", &_L1etsum_etm);
+    outputTree->Branch("_L1etsum_etm_phi", &_L1etsum_etm_phi);
+    outputTree->Branch("_L1etsum_ettot", &_L1etsum_ettot);
+
 
     outputTree->Branch("l1muqual12_leadingpt", &l1muqual12_leadingpt, "l1muqual12_leadingpt/F");
     outputTree->Branch("l1muqual12_subleadingpt", &l1muqual12_subleadingpt, "l1muqual12_subleadingpt/F");
@@ -2142,6 +2178,8 @@ Ntuplizer::beginJob()
     outputTree->Branch("_L1eg_phi",&_L1eg_phi);
     outputTree->Branch("_L1eg_bx",&_L1eg_bx);
     outputTree->Branch("_L1eg_iso",&_L1eg_iso);
+    //outputTree->Branch("_L1eg_isoet",&_L1eg_isoet); //not stored for unpacked objects, only relevant when analyzing reemulated objects. 
+    //outputTree->Branch("_L1eg_ntt",&_L1eg_ntt);//same remark
     outputTree->Branch("_L1jet_pt",&_L1jet_pt);
     outputTree->Branch("_L1jet_eta",&_L1jet_eta);
     outputTree->Branch("_L1jet_phi",&_L1jet_phi);
@@ -2285,7 +2323,13 @@ Ntuplizer::beginJob()
     outputTree->Branch("_L1etsum_mht", &_L1etsum_mht);
     outputTree->Branch("_L1etsum_mht_phi", &_L1etsum_mht_phi);
     outputTree->Branch("_L1etsum_ht", &_L1etsum_ht);
+    outputTree->Branch("_L1etsum_TTcount", &_L1etsum_TTcount);
     outputTree->Branch("_L1etsum_bx", &_L1etsum_bx);
+
+    outputTree->Branch("_L1etsum_etemtot", &_L1etsum_etemtot);
+    outputTree->Branch("_L1etsum_etm", &_L1etsum_etm);
+    outputTree->Branch("_L1etsum_etm_phi", &_L1etsum_etm_phi);
+    outputTree->Branch("_L1etsum_ettot", &_L1etsum_ettot);
 
 
     // outputTree->Branch("_PUV1_x", &_PUV1_x, "_PUV1_x/F");
@@ -2910,7 +2954,6 @@ Ntuplizer::beginJob()
   outputTree->Branch("_L1eg_bx",&_L1eg_bx);
   outputTree->Branch("_L1eg_iso",&_L1eg_iso);
 
-
   outputTree->Branch("_L1jet_pt",&_L1jet_pt);
   outputTree->Branch("_L1jet_eta",&_L1jet_eta);
   outputTree->Branch("_L1jet_phi",&_L1jet_phi);
@@ -3303,6 +3346,8 @@ void Ntuplizer::InitandClearStuff(){
   _L1eg_phi.clear();
   _L1eg_bx.clear();
   _L1eg_iso.clear();
+  //_L1eg_isoet.clear();  //not stored for unpacked objects, only relevant when analyzing reemulated objects. 
+  //_L1eg_ntt.clear(); //same remark
 
   _L1jet_pt.clear();
   _L1jet_eta.clear();
@@ -3315,7 +3360,13 @@ void Ntuplizer::InitandClearStuff(){
   _L1etsum_mht.clear();
   _L1etsum_mht_phi.clear();
   _L1etsum_ht.clear();
+  _L1etsum_TTcount.clear();
   _L1etsum_bx.clear();
+
+  _L1etsum_etemtot.clear();
+  _L1etsum_etm.clear();
+  _L1etsum_etm_phi.clear();
+  _L1etsum_ettot.clear();
 
 
   HLT_Photon110EB_TightID_TightIso=false;
