@@ -109,8 +109,8 @@ process.load("Configuration.StandardSequences.MagneticField_cff")
 process.load("Geometry.CMSCommonData.cmsIdealGeometryXML_cfi")
 process.load('Configuration.StandardSequences.Reconstruction_cff')
 
-chsJetCollectionName ="slimmedJets"
-puppiJetCollectionName ="updatedPatJetsUpdatedJECPuppi"
+chsJetCollectionName = "slimmedJets"
+puppiJetCollectionName = "updatedPatJetsUpdatedJECPuppi"
 
 if reclusterCHSJets: 
     chsJetCollectionName ="selectedPatJetsCHS"
@@ -234,7 +234,7 @@ process.ntuplizer = cms.EDAnalyzer('Ntuplizer',
                                    Jets=cms.InputTag(chsJetCollectionName),
                                    JetsAK8=cms.InputTag("selectedPatJetsAK8CHS"),
                                    #JetsPuppi=cms.InputTag("updatedPatJetsUpdatedJECPuppi"),
-                                   JetsPuppi=cms.InputTag("puppiJetCollectionName"),
+                                   JetsPuppi=cms.InputTag(puppiJetCollectionName),
                                    JetsPuppiAK8=cms.InputTag("slimmedJetsAK8"),
                                    JetsCalo=cms.InputTag("slimmedCaloJets"),
                                    JetsPFnoCHS=cms.InputTag("selectedPatJetsPlain"),
