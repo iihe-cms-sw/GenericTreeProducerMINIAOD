@@ -447,8 +447,8 @@ import FWCore.ParameterSet.Types as CfgTypes
 process.source.lumisToProcess = CfgTypes.untracked(CfgTypes.VLuminosityBlockRange())
 
 
-#JSONfile ='GoldenJSON_2016_2017_2018_2022.json'
-JSONfile ='Cert_Fill8456.json'
+JSONfile ='GoldenJSON_2016_2017_2018_2022.json'
+#JSONfile ='Cert_Fill8456.json'
 myLumis = LumiList.LumiList(filename = JSONfile).getCMSSWString().split(',')
 #if not ismc:
 #    process.source.lumisToProcess.extend(myLumis)

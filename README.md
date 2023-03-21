@@ -1,10 +1,10 @@
 # Instructions
 ```
-cmsrel CMSSW_12_4_8
-cd CMSSW_12_4_8/src
+cmsrel CMSSW_13_0_0
+cd CMSSW_13_0_0/src
 cmsenv
 git cms-addpkg RecoMET/METFilters
-git clone https://github.com/iihe-cms-sw/MacrosNtuples.git 
+git clone https://github.com/iihe-cms-sw/GenericTreeProducerMINIAOD.git 
 scram b -j4
 ```
 To run the code: 
