@@ -17,8 +17,7 @@ config.JobType.outputFiles = ['output.root']
 config.JobType.inputFiles = [
 'jetfiles',
 '*.json',
-'RochesterCorrections',
-'UnprefireableEventList']
+'RochesterCorrections']
 config.Data.inputDataset = 'THEDATASET'
 
 config.Data.inputDBS = 'global'
