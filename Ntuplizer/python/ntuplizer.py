@@ -442,7 +442,8 @@ process.source.lumisToProcess = CfgTypes.untracked(CfgTypes.VLuminosityBlockRang
 
 
 #JSONfile ='GoldenJSON_2016_2017_2018_2022.json'
-JSONfile ='Cert_Fill8456.json'
+JSONfile ='Cert_Collisions2016to2022_273158_362760_Golden.json'
+#JSONfile ='Cert_Fill8456.json'
 myLumis = LumiList.LumiList(filename = JSONfile).getCMSSWString().split(',')
 #if not ismc:
 #    process.source.lumisToProcess.extend(myLumis)

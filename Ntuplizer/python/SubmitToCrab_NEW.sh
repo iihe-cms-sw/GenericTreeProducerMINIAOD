@@ -47,6 +47,7 @@ fi
 
 
 cp ntuplizer.py theconfig.py 
+#cp ntuplizer_forcrab.py theconfig.py 
 sed -ie "s/iscrab = False/iscrab = True/g" theconfig.py
 sed -ie "s/THESKIM/$skim/g" theconfig.py
 sed -ie "s/THERUNERA/$RUNERA/g" theconfig.py

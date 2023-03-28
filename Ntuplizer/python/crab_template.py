@@ -1,8 +1,10 @@
 from CRABClient.UserUtilities import config
+from time import strftime # for crabworkarea name
 config = config()
 
 config.General.requestName = 'THEREQUESTNAME'
-config.General.workArea = 'crabworkarea_14feb2023_Run3data'
+#config.General.workArea = 'crabworkarea_14feb2023_Run3data'
+config.General.workArea = 'crabworkarea_' + strftime('%Y%b%d') # Year in decimal, month abreviation, day in decimal
 config.General.transferOutputs = True
 config.General.transferLogs = True
 
@@ -18,7 +20,8 @@ config.JobType.inputFiles = [
 'jetfiles',
 '*.json',
 'RochesterCorrections',
-'UnprefireableEventList']
+]
+#'UnprefireableEventList']
 config.Data.inputDataset = 'THEDATASET'
 
 config.Data.inputDBS = 'global'
@@ -35,7 +38,8 @@ config.Data.outputDatasetTag = 'CAMPAIGN_RUNERA_THESKIM'
 config.Data.partialDataset = True
 
 #Lumi mask to be applied
-config.Data.lumiMask = 'GoldenJSON_2016_2017_2018_2022.json'
+#config.Data.lumiMask = 'GoldenJSON_2016_2017_2018_2022.json'
+config.Data.lumiMask = 'Cert_Collisions2016to2022_273158_362760_Golden.json'
 #If you want to store the output file on a EOS group folder: 
 #config.Data.outLFNDirBase = '/store/group/dpg_trigger/comm_trigger/L1Trigger/lathomas/Run3Commissioning'
 #config.Site.storageSite = 'T2_CH_CERN'
