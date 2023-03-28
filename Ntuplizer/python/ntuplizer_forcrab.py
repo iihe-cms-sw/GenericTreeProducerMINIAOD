@@ -8,7 +8,8 @@ eras = ['DataUL2016', 'DataUL2017', 'DataUL2018', 'DataRun3', 'MCUL2016', 'MCUL2
 skim = "THESKIM"
 runera="THERUNERA"
 
-ISMC=bool(MCBOOL)
+#ISMC=bool(MCBOOL)
+ISMC=False
 
 if not ISMC:
     reclusterGenJets = False
