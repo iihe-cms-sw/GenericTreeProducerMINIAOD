@@ -1,8 +1,9 @@
 from CRABClient.UserUtilities import config
+from time import strftime # for crabworkarea name
 config = config()
 
 config.General.requestName = 'THEREQUESTNAME'
-config.General.workArea = 'crabworkarea_14feb2023_Run3data'
+config.General.workArea = 'crabworkarea_' + strftime('%Y%b%d') # Year in decimal, month abreviation, day in decimal
 config.General.transferOutputs = True
 config.General.transferLogs = True
 
