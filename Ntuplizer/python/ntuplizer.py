@@ -75,8 +75,9 @@ if skim == "MCJECs":
 
 
 import FWCore.ParameterSet.Config as cms
-
-process = cms.Process("Demo")
+from Configuration.Eras.Era_Run3_cff import Run3
+process = cms.Process("Demo", Run3)
+#Just use process = cms.Process("Demo") for Run 2
 
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.MessageLogger.cerr.FwkReport.reportEvery = 1000
@@ -220,6 +221,8 @@ process.GlobalTag.globaltag="123X_dataRun3_Prompt_v12"
 if "MC" in runera:
     process.GlobalTag.globaltag="123X_mcRun3_2021_realistic_v13"
 
+process.GlobalTag.globaltag="130X_mcRun3_2023_realistic_v7"
+
 print("Roch corr file: ")
 print(rochesterCorrectionFile)
 
@@ -250,7 +253,12 @@ process.ntuplizer = cms.EDAnalyzer('Ntuplizer',
                                    PULabel = cms.InputTag("slimmedAddPileupInfo"),
                                    Triggers = cms.InputTag("TriggerResults::HLT"),
                                    l1GtSrc = cms.InputTag("gtStage2Digis"),
+                                   L1Muon = cms.InputTag("gmtStage2Digis","Muon","RECO"),
+                                   L1EGamma = cms.InputTag("caloStage2Digis","EGamma","RECO"),
+                                   L1Jet = cms.InputTag("caloStage2Digis","Jet","RECO"),
+                                   L1ETSum = cms.InputTag("caloStage2Digis","EtSum","RECO"),
                                    GenParticles=cms.InputTag("prunedGenParticles"),
+                                   PackedGenParticles=cms.InputTag("packedGenParticles"),
                                    GenInfo=cms.InputTag("generator"),
                                    LHELabel = cms.InputTag("externalLHEProducer"),
                                    LHELabelALT = cms.InputTag("source"),
@@ -279,7 +287,9 @@ process.ntuplizer = cms.EDAnalyzer('Ntuplizer',
                                    PFCandPtCut=cms.double(25000),
                                    SaveTree=cms.bool(True),
                                    IsMC=cms.bool(ismc),
+                                   IsL1ReEmul=cms.bool(True),
                                    SaveTaus=cms.bool(False),
+                                   SaveECALRH=cms.bool(False),
                                    SavePUIDVariables=cms.bool(False),
                                    SaveAK8Jets=cms.bool(False),
                                    SaveCaloJets=cms.bool(True),
@@ -355,9 +365,9 @@ if skim == "L1Unprefirable":
     process.ntuplizer.DropBadJets=cms.bool(False)
 
 if skim == "L1Study_ZToMuMu" or skim == "L1Study_ZToEE":
-    process.ntuplizer.JetPtCut=cms.double(20000)
+    process.ntuplizer.JetPtCut=cms.double(30)
     process.ntuplizer.AK8JetPtCut=cms.double(20000)
-    process.ntuplizer.PhotonPtCut=cms.double(20000)
+    process.ntuplizer.PhotonPtCut=cms.double(20)
     process.ntuplizer.ElectronPtCut=cms.double(10)
     process.ntuplizer.MuonPtCut=cms.double(3)
     process.ntuplizer.ApplyPhotonID=cms.bool(False)
@@ -365,7 +375,7 @@ if skim == "L1Study_ZToMuMu" or skim == "L1Study_ZToEE":
     process.ntuplizer.SaveCaloJets=cms.bool(False)
     process.ntuplizer.SavenoCHSJets=cms.bool(False)
     process.ntuplizer.DropUnmatchedJets=cms.bool(False)
-    process.ntuplizer.DropBadJets=cms.bool(False)
+    process.ntuplizer.DropBadJets=cms.bool(True)
     
 if skim == "L1Study_SingleMuforJME" or skim == "L1Study_SinglePhotonforJME":
     process.ntuplizer.JetPtCut=cms.double(20)
@@ -378,7 +388,7 @@ if skim == "L1Study_SingleMuforJME" or skim == "L1Study_SinglePhotonforJME":
     process.ntuplizer.SaveCaloJets=cms.bool(False)
     process.ntuplizer.SavenoCHSJets=cms.bool(False)
     process.ntuplizer.DropUnmatchedJets=cms.bool(False)
-    process.ntuplizer.DropBadJets=cms.bool(False)
+    process.ntuplizer.DropBadJets=cms.bool(True)
     
 #Rerunning the ecalbadcalibration filter
 from RecoMET.METFilters.ecalBadCalibFilter_cfi import ecalBadCalibFilter

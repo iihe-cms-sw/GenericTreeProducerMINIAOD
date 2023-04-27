@@ -19,7 +19,8 @@
 #include "DataFormats/L1Trigger/interface/Jet.h"
 #include "DataFormats/L1Trigger/interface/EtSum.h"
 #include "DataFormats/L1Trigger/interface/BXVector.h"
-
+#include "Geometry/CaloGeometry/interface/CaloGeometry.h"
+#include "Geometry/Records/interface/CaloGeometryRecord.h"
 
 #include "FWCore/ServiceRegistry/interface/Service.h"
 #include "CommonTools/UtilAlgos/interface/TFileService.h"
@@ -42,6 +43,7 @@
 #include "DataFormats/PatCandidates/interface/MET.h"
 #include "DataFormats/PatCandidates/interface/Muon.h"
 #include "DataFormats/PatCandidates/interface/Photon.h"
+#include "DataFormats/PatCandidates/interface/PackedGenParticle.h"
 #include "DataFormats/VertexReco/interface/Vertex.h"
 
 #include "DataFormats/L1TGlobal/interface/GlobalAlgBlk.h"
@@ -149,7 +151,7 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   bool PassTriggerLeg(std::string triggerlegstring, const pat::Jet *jetit, const edm::Event& theevent){ return PassTriggerLeg(triggerlegstring,"Noalttrigger",jetit,theevent);};
 
   virtual bool  PassTrigger4L();
-
+  math::XYZPoint getPosition(const DetId &id, reco::Vertex::Point vtx, const CaloGeometry *geo);
 
  
   // ----------member data ---------------------------
@@ -214,6 +216,9 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   edm::EDGetTokenT<l1t::JetBxCollection>l1JetToken_;
   edm::EDGetTokenT<l1t::EtSumBxCollection>l1EtSumToken_;
   edm::EDGetTokenT<GlobalExtBlkBxCollection> UnprefirableEventToken_;
+  edm::EDGetTokenT<EcalRecHitCollection>ecalebhitsToken_;
+  edm::EDGetTokenT<EcalRecHitCollection>ecaleehitsToken_;
+  edm::ESGetToken<CaloGeometry, CaloGeometryRecord> geoToken_;
 
   l1t::L1TGlobalUtil* l1GtUtils_;
   InputTag  algTag_, extTag_;
@@ -231,7 +236,7 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   string PhotonTightWP_;
   Float_t PFCandPtCut_;
 
-  Bool_t SaveTree_, IsMC_, SaveTaus_, SavePUIDVariables_, SaveAK8Jets_, SaveCaloJets_, SavenoCHSJets_, DropUnmatchedJets_, DropBadJets_, SavePFinJets_, ApplyPhotonID_;
+  Bool_t SaveTree_, IsMC_, IsL1ReEmul_, SaveTaus_, SaveECALRH_, SavePUIDVariables_, SaveAK8Jets_, SaveCaloJets_, SavenoCHSJets_, DropUnmatchedJets_, DropBadJets_, SavePFinJets_, ApplyPhotonID_;
   string Skim_;
   string RunEra_;
   string Dataset_;
@@ -250,7 +255,6 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   TTree* outputTree;
   TTree* jetPFTree;
   
-  ifstream myfile_unprefevts;
   //Variables associated to leaves of the TTree
 
   unsigned long _eventNb;
@@ -486,6 +490,12 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   Float_t _pz4l;
   Float_t _y4l;
 
+  //ECAL rechits
+  vector <double> ecaleerechit_T, ecaleerechit_ix, ecaleerechit_iy, ecaleerechit_et,ecaleerechit_Z,ecaleerechit_R;
+  vector <double> ecaleerechit_eta, ecaleerechit_phi;
+  vector <double> ecalebrechit_T, ecalebrechit_ieta, ecalebrechit_iphi, ecalebrechit_et,ecalebrechit_Z, ecalebrechit_R;
+  vector <double> ecalebrechit_eta, ecalebrechit_phi;
+
   //Event variables (gen)
   Float_t _mll_gen;
   Float_t _ptll_gen;
@@ -502,6 +512,12 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
 
   //Some gen variables
   Float_t _genHT, _genMassNus, _weight;
+  
+  vector <Float_t> genpart_pt;
+  vector <Float_t> genpart_eta;
+  vector <Float_t> genpart_phi;
+  vector <int> genpart_pdgId;
+  vector <int> genpart_status;
 
   //PF candidates
   vector <Float_t> _PFcand_pt;
@@ -764,11 +780,14 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig)
   trigobjectToken_(consumes<pat::TriggerObjectStandAloneCollection>(edm::InputTag("slimmedPatTrigger"))),
   l1GtToken_(consumes<BXVector<GlobalAlgBlk>>(iConfig.getParameter<edm::InputTag>("l1GtSrc"))),
   l1GtMenuToken_(esConsumes<L1TUtmTriggerMenu, L1TUtmTriggerMenuRcd>()),
-  l1MuonToken_(consumes<l1t::MuonBxCollection>(edm::InputTag("gmtStage2Digis","Muon"))),
-  l1EGammaToken_(consumes<l1t::EGammaBxCollection>(edm::InputTag("caloStage2Digis","EGamma"))),
-  l1JetToken_(consumes<l1t::JetBxCollection>(edm::InputTag("caloStage2Digis","Jet"))),
-  l1EtSumToken_(consumes<l1t::EtSumBxCollection>(edm::InputTag("caloStage2Digis","EtSum"))),
+  l1MuonToken_(consumes<l1t::MuonBxCollection>(iConfig.getParameter<edm::InputTag>("L1Muon"))),
+  l1EGammaToken_(consumes<l1t::EGammaBxCollection>(iConfig.getParameter<edm::InputTag>("L1EGamma"))),
+  l1JetToken_(consumes<l1t::JetBxCollection>(iConfig.getParameter<edm::InputTag>("L1Jet"))),
+  l1EtSumToken_(consumes<l1t::EtSumBxCollection>(iConfig.getParameter<edm::InputTag>("L1ETSum"))),
   UnprefirableEventToken_(consumes<GlobalExtBlkBxCollection>(edm::InputTag("simGtExtUnprefireable"))),
+  ecalebhitsToken_(consumes<EcalRecHitCollection>(edm::InputTag("reducedEgamma:reducedEBRecHits"))),
+  ecaleehitsToken_(consumes<EcalRecHitCollection>(edm::InputTag("reducedEgamma:reducedEERecHits"))),
+  geoToken_(esConsumes<CaloGeometry, CaloGeometryRecord>()),
 //  jecsToken_(esConsumes(edm::ESInputTag("","AK4PFchs"))),
   JetPtCut_(iConfig.getParameter<double>("JetPtCut")),
   AK8JetPtCut_(iConfig.getParameter<double>("AK8JetPtCut")),
@@ -784,7 +803,9 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig)
   PFCandPtCut_(iConfig.getParameter<double>("PFCandPtCut")),
   SaveTree_(iConfig.getParameter<bool>("SaveTree")), 
   IsMC_(iConfig.getParameter<bool>("IsMC")),
+  IsL1ReEmul_(iConfig.getParameter<bool>("IsL1ReEmul")),
   SaveTaus_(iConfig.getParameter<bool>("SaveTaus")),
+  SaveECALRH_(iConfig.getParameter<bool>("SaveECALRH")),
   SavePUIDVariables_(iConfig.getParameter<bool>("SavePUIDVariables")),
   SaveAK8Jets_(iConfig.getParameter<bool>("SaveAK8Jets")),
   SaveCaloJets_(iConfig.getParameter<bool>("SaveCaloJets")),
@@ -841,7 +862,6 @@ void Ntuplizer::beginRun(edm::Run const & iRun, edm::EventSetup const& iSetup)
   //The following lines are needed for picking events from a list (currently unprefirable events)
   int runnb = iRun.id().run();
   TString str_runnb =Form("%d", runnb) ; 
-  myfile_unprefevts.open("UnprefireableEventList/run_"+str_runnb+".txt");
   cout << "Run is " <<str_runnb <<endl;
 }
 
@@ -849,7 +869,6 @@ void Ntuplizer::beginRun(edm::Run const & iRun, edm::EventSetup const& iSetup)
 void Ntuplizer::endRun(edm::Run const & iRun, edm::EventSetup const& iSetup)
 {
 
-  myfile_unprefevts.close();
   //  delete jecUnc;
 }
 
@@ -867,7 +886,7 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   }
   else jecUnc = 0;
   */
-
+  const CaloGeometry* geo = &iSetup.getData(geoToken_);
 
   
   InitandClearStuff();
@@ -987,17 +1006,17 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   _l1FinalOR_BXmin1= false;
   _l1FinalOR_BX0= false;
-  if(!IsMC_)_l1FinalOR_BXmin1 = l1GtHandle->begin(-1)->getFinalOR();
+  if(!IsMC_&&!IsL1ReEmul_)_l1FinalOR_BXmin1 = l1GtHandle->begin(-1)->getFinalOR();
   _l1FinalOR_BX0 = l1GtHandle->begin(0)->getFinalOR();
 
   for(int i =0; i <512; i++){
-    if(!IsMC_) passL1_Initial_bxmin1[i]= l1GtHandle->begin(-1)->getAlgoDecisionInitial(i);
+    if(!IsMC_&&!IsL1ReEmul_) passL1_Initial_bxmin1[i]= l1GtHandle->begin(-1)->getAlgoDecisionInitial(i);
     else passL1_Initial_bxmin1[i]= false;
     passL1_Initial_bx0[i]= l1GtHandle->begin(0)->getAlgoDecisionInitial(i);
     passL1_Final_bx0[i]= l1GtHandle->begin(0)->getAlgoDecisionFinal(i);
-    if(!IsMC_) passL1_Initial_bxplus1[i]= l1GtHandle->begin(+1)->getAlgoDecisionInitial(i);
+    if(!IsMC_&&!IsL1ReEmul_) passL1_Initial_bxplus1[i]= l1GtHandle->begin(+1)->getAlgoDecisionInitial(i);
     else passL1_Initial_bxplus1[i]= false;
-    if(!IsMC_) passL1_Initial_bxplus2[i]= l1GtHandle->begin(+2)->getAlgoDecisionInitial(i);
+    if(!IsMC_&&!IsL1ReEmul_) passL1_Initial_bxplus2[i]= l1GtHandle->begin(+2)->getAlgoDecisionInitial(i);
     else passL1_Initial_bxplus2[i]= false;
 
   }
@@ -1995,6 +2014,49 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   //Now computing the met from CH for each PV
   for(unsigned int i = 0;i<theVertices->size() ; i++) {_METCH_PV[i] = metPV[i].Mod(); _METPhiCH_PV[i] = metPV[i].Phi(); }
 
+  Handle<EcalRecHitCollection> ecalebhits;
+  iEvent.getByToken(ecalebhitsToken_,ecalebhits);
+
+  Handle<EcalRecHitCollection> ecaleehits;
+  iEvent.getByToken(ecaleehitsToken_,ecaleehits);
+  reco::Vertex::Point vtx(0,0,0);
+
+
+  for(size_t ihit = 0; ihit<ecalebhits->size(); ++ ihit){
+    const EcalRecHit & rechit = (*ecalebhits)[ ihit ];
+    math::XYZPoint rhpos = getPosition(rechit.id(),vtx, geo);
+    if(rechit.energy()/cosh(rhpos.eta())<1) continue;
+    ecalebrechit_T.push_back(rechit.time());
+    EBDetId det    = rechit.id();
+    ecalebrechit_ieta.push_back(det.ieta());
+    ecalebrechit_iphi.push_back(det.iphi());
+
+    ecalebrechit_eta.push_back(rhpos.eta());
+    ecalebrechit_phi.push_back(rhpos.phi());
+    ecalebrechit_et.push_back(rechit.energy()/cosh(rhpos.eta()) );
+    ecalebrechit_Z.push_back(rhpos.z());
+    ecalebrechit_R.push_back(rhpos.perp2());
+  }
+
+
+  for(size_t ihit = 0; ihit<ecaleehits->size(); ++ ihit){
+    const EcalRecHit & rechit = (*ecaleehits)[ ihit ];
+    math::XYZPoint rhpos = getPosition(rechit.id(),vtx, geo);
+    if(rechit.energy()/cosh(rhpos.eta())<1.) continue;
+
+    ecaleerechit_T.push_back(rechit.time());
+    EEDetId det    = rechit.id();
+    ecaleerechit_ix.push_back(det.ix());
+    ecaleerechit_iy.push_back(det.iy());
+
+    ecaleerechit_eta.push_back(rhpos.eta());
+    ecaleerechit_phi.push_back(rhpos.phi());
+    ecaleerechit_et.push_back(rechit.energy()/cosh(rhpos.eta()) );
+    ecaleerechit_Z.push_back(rhpos.z());
+    ecaleerechit_R.push_back(sqrt(rhpos.perp2()));
+
+  }
+
 
   //Gen particle info
   edm::Handle<GenParticleCollection> TheGenParticles;
@@ -2014,6 +2076,13 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 	      p->phi() <<
 	      endl;
       */
+      /*if(p->pt()>=PFCandPtCut_){
+	genpart_pt.push_back(p->pt());
+	genpart_eta.push_back(p->eta());
+	genpart_phi.push_back(p->phi());
+	genpart_pdgId.push_back(p->pdgId());
+	genpart_status.push_back(p->status());
+	}*/
       if ((id == 1 || id == 2 || id == 3 || id == 4 || id == 5 || id == 21 || id == 22 ) && (p->status() == 23&& TMath::Abs(p->mother()->pdgId())!=6 &&TMath::Abs(p->mother()->pdgId())!=24 )){
 	_genHT += p->pt();
       }
@@ -2124,7 +2193,116 @@ void
 Ntuplizer::beginJob()
 {
 
+  if(PFCandPtCut_<1000){
+    outputTree->Branch("_PFcand_pt",&_PFcand_pt);
+    outputTree->Branch("_PFcand_eta",&_PFcand_eta);
+    outputTree->Branch("_PFcand_phi",&_PFcand_phi);
+    outputTree->Branch("_PFcand_pdgId",&_PFcand_pdgId);
+    outputTree->Branch("_PFcand_fromPV",&_PFcand_fromPV);
+    outputTree->Branch("_PFcand_dz",&_PFcand_dz);
+    outputTree->Branch("_PFcand_dzError",&_PFcand_dzError);
+    outputTree->Branch("_PFcand_hcalFraction",&_PFcand_hcalFraction);
+    outputTree->Branch("_PFcand_PVfitidx",&_PFcand_PVfitidx);
+    outputTree->Branch("_PFcand_puppiweight",&_PFcand_puppiweight);
+    if(IsMC_){
+      outputTree->Branch("genpart_pt",&genpart_pt);
+      outputTree->Branch("genpart_eta",&genpart_eta);
+      outputTree->Branch("genpart_phi",&genpart_phi);
+      outputTree->Branch("genpart_pdgId",&genpart_pdgId);
+      outputTree->Branch("genpart_status",&genpart_status);
+    }
+  }
 
+  if(SaveECALRH_){
+    outputTree->Branch("ecaleerechit_eta",&ecaleerechit_eta );
+    outputTree->Branch("ecaleerechit_phi",&ecaleerechit_phi );
+    outputTree->Branch("ecaleerechit_R",&ecaleerechit_R );
+    outputTree->Branch("ecaleerechit_Z",&ecaleerechit_Z );
+    outputTree->Branch("ecaleerechit_ix",&ecaleerechit_ix );
+    outputTree->Branch("ecaleerechit_iy",&ecaleerechit_iy );
+    outputTree->Branch("ecaleerechit_et",&ecaleerechit_et);
+    outputTree->Branch("ecaleerechit_T",&ecaleerechit_T);
+
+    outputTree->Branch("ecalebrechit_eta",&ecalebrechit_eta );
+    outputTree->Branch("ecalebrechit_phi",&ecalebrechit_phi );
+    outputTree->Branch("ecalebrechit_Z",&ecalebrechit_Z );
+    outputTree->Branch("ecalebrechit_R",&ecalebrechit_R );
+    outputTree->Branch("ecalebrechit_ieta",&ecalebrechit_ieta );
+    outputTree->Branch("ecalebrechit_iphi",&ecalebrechit_iphi );
+    outputTree->Branch("ecalebrechit_et",&ecalebrechit_et);
+    outputTree->Branch("ecalebrechit_T",&ecalebrechit_T);
+  }
+
+  if(SaveTaus_){
+    outputTree->Branch("_tauEta",&_tauEta);
+    outputTree->Branch("_tauPhi",&_tauPhi);
+    outputTree->Branch("_tauPt",&_tauPt);
+    outputTree->Branch("_tauPassMediumID",&_tauPassMediumID);
+  }
+
+  if(SavePUIDVariables_){
+    outputTree->Branch("_jet_beta",&_jet_beta);
+    outputTree->Branch("_jet_dR2Mean",&_jet_dR2Mean);
+    outputTree->Branch("_jet_majW",&_jet_majW);
+    outputTree->Branch("_jet_minW",&_jet_minW);
+    outputTree->Branch("_jet_frac01",&_jet_frac01);
+    outputTree->Branch("_jet_frac02",&_jet_frac02);
+    outputTree->Branch("_jet_frac03",&_jet_frac03);
+    outputTree->Branch("_jet_frac04",&_jet_frac04);
+    outputTree->Branch("_jet_ptD",&_jet_ptD);
+    outputTree->Branch("_jet_betaStar",&_jet_betaStar);
+    outputTree->Branch("_jet_pull",&_jet_pull);
+    outputTree->Branch("_jet_jetR",&_jet_jetR);
+    outputTree->Branch("_jet_jetRchg",&_jet_jetRchg);
+    outputTree->Branch("_jet_nParticles",&_jet_nParticles);
+    outputTree->Branch("_jet_nCharged",&_jet_nCharged);
+  }
+
+  if(SaveAK8Jets_){
+    outputTree->Branch("_puppiak8jetEta",&_puppiak8jetEta);
+    outputTree->Branch("_puppiak8jetPhi",&_puppiak8jetPhi);
+    outputTree->Branch("_puppiak8jetPt",&_puppiak8jetPt);
+    outputTree->Branch("_puppiak8jetRawPt",&_puppiak8jetRawPt);
+    outputTree->Branch("_puppiak8jetPtGen",&_puppiak8jetPtGen);
+    outputTree->Branch("_puppiak8jet_tau1",&_puppiak8jet_tau1);
+    outputTree->Branch("_puppiak8jet_tau2",&_puppiak8jet_tau2);
+    outputTree->Branch("_puppiak8jet_tau3",&_puppiak8jet_tau3);
+    outputTree->Branch("_ak8jetEta",&_ak8jetEta);
+    outputTree->Branch("_ak8jetPhi",&_ak8jetPhi);
+    outputTree->Branch("_ak8jetPt",&_ak8jetPt);
+    outputTree->Branch("_ak8jetArea",&_ak8jetArea);
+    outputTree->Branch("_ak8jetRawPt",&_ak8jetRawPt);
+    outputTree->Branch("_ak8jetPtGen",&_ak8jetPtGen);
+  }
+
+  if(SaveCaloJets_){
+    outputTree->Branch("_calojetEta",&_calojetEta);
+    outputTree->Branch("_calojetPhi",&_calojetPhi);
+    outputTree->Branch("_calojetPt",&_calojetPt);
+    outputTree->Branch("_calojetRawPt",&_calojetRawPt);
+    outputTree->Branch("_calojetPtGen",&_calojetPtGen);
+    outputTree->Branch("_calojetLeptonPhotonCleaned",&_calojetLeptonPhotonCleaned);
+  }
+  if(SavenoCHSJets_){
+    outputTree->Branch("_noCHSjetEta",&_noCHSjetEta);
+    outputTree->Branch("_noCHSjetPhi",&_noCHSjetPhi);
+    outputTree->Branch("_noCHSjetPt",&_noCHSjetPt);
+    outputTree->Branch("_noCHSjetRawPt",&_noCHSjetRawPt);
+    outputTree->Branch("_noCHSjetPtGen",&_noCHSjetPtGen);
+    outputTree->Branch("_noCHSjetLeptonPhotonCleaned",&_noCHSjetLeptonPhotonCleaned);
+  }
+
+  if(IsMC_){
+    outputTree->Branch("_genjetEta",&_genjetEta);
+    outputTree->Branch("_genjetPhi",&_genjetPhi);
+    outputTree->Branch("_genjetPt",&_genjetPt);
+    outputTree->Branch("_genmet", &_genmet, "_genmet/F");
+    outputTree->Branch("_genmet_phi", &_genmet_phi, "_genmet_phi/F");
+    outputTree->Branch("trueNVtx", &trueNVtx,"trueNVtx/I");
+  }
+
+
+  //Now skim specific variables 
   if(Skim_ == "L1Studies_EphemeralHLTPhysics" || Skim_ == "L1Studies_EphemeralZeroBias"){
     outputTree->Branch("_eventNb",   &_eventNb,   "_eventNb/l");
     outputTree->Branch("_runNb",     &_runNb,     "_runNb/l");
@@ -2193,27 +2371,14 @@ Ntuplizer::beginJob()
     return ;
   }
 
-
-
-  if(SaveTaus_){
-    outputTree->Branch("_tauEta",&_tauEta);
-    outputTree->Branch("_tauPhi",&_tauPhi);
-    outputTree->Branch("_tauPt",&_tauPt);
-    outputTree->Branch("_tauPassMediumID",&_tauPassMediumID);
-  }
-
   if(Skim_=="FourLeptons"){
     outputTree->Branch("_m4l", &_m4l, "_m4l/F");
     outputTree->Branch("_pt4l", &_pt4l, "_pt4l/F");
     outputTree->Branch("_pz4l", &_pz4l, "_pz4l/F");
     outputTree->Branch("_y4l", &_y4l, "_y4l/F");
   }
-
-
   
   if(Skim_.find("L1Study") !=std::string::npos){
-
-
     outputTree->Branch("_eventNb",   &_eventNb,   "_eventNb/l");
     outputTree->Branch("_runNb",     &_runNb,     "_runNb/l");
     outputTree->Branch("_lumiBlock", &_lumiBlock, "_lumiBlock/l");
@@ -2225,8 +2390,6 @@ Ntuplizer::beginJob()
 
     outputTree->Branch("_l1FinalOR_BXmin1",&_l1FinalOR_BXmin1,"_l1FinalOR_BXmin1/O");
     outputTree->Branch("_l1FinalOR_BX0",&_l1FinalOR_BX0,"_l1FinalOR_BX0/O");
-
-
 
     outputTree->Branch("_lEta",&_lEta);
     outputTree->Branch("_lPhi",&_lPhi);
@@ -2252,8 +2415,6 @@ Ntuplizer::beginJob()
     outputTree->Branch("hltL3fL1sSingleMuOpenCandidateL1f0L2f3QL3Filtered50Q",&hltL3fL1sSingleMuOpenCandidateL1f0L2f3QL3Filtered50Q);
     outputTree->Branch("hltL3fL1sMu22Or25L1f0L2f10QL3Filtered50Q",&hltL3fL1sMu22Or25L1f0L2f10QL3Filtered50Q);
 
- 
-
     outputTree->Branch("_phEta",&_phEta);
     outputTree->Branch("_phPhi",&_phPhi);
     outputTree->Branch("_phPt",&_phPt);
@@ -2264,7 +2425,6 @@ Ntuplizer::beginJob()
     //outputTree->Branch("passL1_Initial_bxmin1",&passL1_Initial_bxmin1,"passL1_Initial_bxmin1[512]/O");
     outputTree->Branch("passL1_Initial_bx0",&passL1_Initial_bx0,"passL1_Initial_bx0[512]/O");
     //outputTree->Branch("passL1_Initial_bxplus1",&passL1_Initial_bxplus1,"passL1_Initial_bxplus1[512]/O");
-    
 
     outputTree->Branch("_L1mu_Qual",&_L1mu_Qual);
     outputTree->Branch("_L1mu_pt",&_L1mu_pt);
@@ -2283,7 +2443,6 @@ Ntuplizer::beginJob()
     outputTree->Branch("l1eg_leadingpt", &l1eg_leadingpt, "l1eg_leadingpt/F");
     outputTree->Branch("l1eg_subleadingpt", &l1eg_subleadingpt, "l1eg_subleadingpt/F");
 
-    
     outputTree->Branch("_ptgamma", &_ptgamma, "_ptgamma/F");
     outputTree->Branch("_phigamma", &_phigamma, "_phigamma/F");
     outputTree->Branch("_mll", &_mll, "_mll/F");
@@ -2481,9 +2640,6 @@ Ntuplizer::beginJob()
       outputTree->Branch("_jetPtGenWithNu",&_jetPtGenWithNu);
       outputTree->Branch("_puppijetPtGen",&_puppijetPtGen);
       outputTree->Branch("_puppijetPtGenWithNu",&_puppijetPtGenWithNu);
-      outputTree->Branch("trueNVtx", &trueNVtx,"trueNVtx/I");
-      outputTree->Branch("_genmet", &_genmet, "_genmet/F");
-      outputTree->Branch("_genmet_phi", &_genmet_phi, "_genmet_phi/F");
       outputTree->Branch("_jetJECuncty",&_jetJECuncty); 
       outputTree->Branch("_puppijetJECuncty",&_puppijetJECuncty);
     }
@@ -2661,23 +2817,6 @@ Ntuplizer::beginJob()
   outputTree->Branch("_jetQuarkGluonLikelihood",&_jetQuarkGluonLikelihood);
 
 
-  if(SavePUIDVariables_){ 
-  outputTree->Branch("_jet_beta",&_jet_beta);
-  outputTree->Branch("_jet_dR2Mean",&_jet_dR2Mean);
-  outputTree->Branch("_jet_majW",&_jet_majW);
-  outputTree->Branch("_jet_minW",&_jet_minW);
-  outputTree->Branch("_jet_frac01",&_jet_frac01);
-  outputTree->Branch("_jet_frac02",&_jet_frac02);
-  outputTree->Branch("_jet_frac03",&_jet_frac03);
-  outputTree->Branch("_jet_frac04",&_jet_frac04);
-  outputTree->Branch("_jet_ptD",&_jet_ptD);
-  outputTree->Branch("_jet_betaStar",&_jet_betaStar);
-  outputTree->Branch("_jet_pull",&_jet_pull);
-  outputTree->Branch("_jet_jetR",&_jet_jetR);
-  outputTree->Branch("_jet_jetRchg",&_jet_jetRchg);
-  outputTree->Branch("_jet_nParticles",&_jet_nParticles);
-  outputTree->Branch("_jet_nCharged",&_jet_nCharged);
-  }
   
   outputTree->Branch("_puppijetEta",&_puppijetEta);
   outputTree->Branch("_puppijetPhi",&_puppijetPhi);
@@ -2689,56 +2828,12 @@ Ntuplizer::beginJob()
   outputTree->Branch("_puppijetPassID",&_puppijetPassID);
   outputTree->Branch("_puppijetPtNoL2L3Res",&_puppijetPtNoL2L3Res);
   
-  if(SaveAK8Jets_){
-  outputTree->Branch("_puppiak8jetEta",&_puppiak8jetEta);
-  outputTree->Branch("_puppiak8jetPhi",&_puppiak8jetPhi);
-  outputTree->Branch("_puppiak8jetPt",&_puppiak8jetPt);
-  outputTree->Branch("_puppiak8jetRawPt",&_puppiak8jetRawPt);
-  outputTree->Branch("_puppiak8jetPtGen",&_puppiak8jetPtGen);
-  outputTree->Branch("_puppiak8jet_tau1",&_puppiak8jet_tau1);
-  outputTree->Branch("_puppiak8jet_tau2",&_puppiak8jet_tau2);
-  outputTree->Branch("_puppiak8jet_tau3",&_puppiak8jet_tau3);
-  outputTree->Branch("_ak8jetEta",&_ak8jetEta);
-  outputTree->Branch("_ak8jetPhi",&_ak8jetPhi);
-  outputTree->Branch("_ak8jetPt",&_ak8jetPt);
-  outputTree->Branch("_ak8jetArea",&_ak8jetArea);
-  outputTree->Branch("_ak8jetRawPt",&_ak8jetRawPt);
-  outputTree->Branch("_ak8jetPtGen",&_ak8jetPtGen);
-
-  }
-
-  if(SaveCaloJets_){
-    outputTree->Branch("_calojetEta",&_calojetEta);
-    outputTree->Branch("_calojetPhi",&_calojetPhi);
-    outputTree->Branch("_calojetPt",&_calojetPt);
-    outputTree->Branch("_calojetRawPt",&_calojetRawPt);
-    outputTree->Branch("_calojetPtGen",&_calojetPtGen);
-    outputTree->Branch("_calojetLeptonPhotonCleaned",&_calojetLeptonPhotonCleaned);
-
-  }
-  
-  if(SavenoCHSJets_){
-    outputTree->Branch("_noCHSjetEta",&_noCHSjetEta);
-    outputTree->Branch("_noCHSjetPhi",&_noCHSjetPhi);
-    outputTree->Branch("_noCHSjetPt",&_noCHSjetPt);
-    outputTree->Branch("_noCHSjetRawPt",&_noCHSjetRawPt);
-    outputTree->Branch("_noCHSjetPtGen",&_noCHSjetPtGen);
-    outputTree->Branch("_noCHSjetLeptonPhotonCleaned",&_noCHSjetLeptonPhotonCleaned);
-  }
-
-  
-  
   if(Skim_=="MCJECs")
   {
-  outputTree->Branch("_genjetEta",&_genjetEta);
-  outputTree->Branch("_genjetPhi",&_genjetPhi);
-  outputTree->Branch("_genjetPt",&_genjetPt);
-  
   outputTree->Branch("_genjet_CHSIdx",&_genjet_CHSIdx);
   outputTree->Branch("_genjet_noCHSIdx",&_genjet_noCHSIdx);
   outputTree->Branch("_genjet_CaloIdx",&_genjet_CaloIdx);
   outputTree->Branch("_genjet_PuppiIdx",&_genjet_PuppiIdx);
- 
 
   outputTree->Branch("_genAK8jetEta",&_genAK8jetEta);
   outputTree->Branch("_genAK8jetPhi",&_genAK8jetPhi);
@@ -2747,30 +2842,8 @@ Ntuplizer::beginJob()
   outputTree->Branch("_genAK8jet_CHSIdx",&_genAK8jet_CHSIdx);
  
   }
-  
-
-  if(PFCandPtCut_<1000){
-  outputTree->Branch("_PFcand_pt",&_PFcand_pt);
-  outputTree->Branch("_PFcand_eta",&_PFcand_eta);
-  outputTree->Branch("_PFcand_phi",&_PFcand_phi);
-  outputTree->Branch("_PFcand_pdgId",&_PFcand_pdgId);
-  outputTree->Branch("_PFcand_fromPV",&_PFcand_fromPV);
-  outputTree->Branch("_PFcand_dz",&_PFcand_dz);
-  outputTree->Branch("_PFcand_dzError",&_PFcand_dzError);
-  outputTree->Branch("_PFcand_hcalFraction",&_PFcand_hcalFraction);
-  outputTree->Branch("_PFcand_PVfitidx",&_PFcand_PVfitidx);
-  outputTree->Branch("_PFcand_puppiweight",&_PFcand_puppiweight);
-  }
-
-
-
 
   
-  if(IsMC_){
-  outputTree->Branch("_genmet", &_genmet, "_genmet/F");
-  outputTree->Branch("_genmet_phi", &_genmet_phi, "_genmet_phi/F");
-  outputTree->Branch("trueNVtx", &trueNVtx,"trueNVtx/I");
-  }
   outputTree->Branch("_met", &_met, "_met/F");
   outputTree->Branch("_met_phi", &_met_phi, "_met_phi/F");
   outputTree->Branch("_puppimet", &_puppimet, "_puppimet/F");
@@ -2933,8 +3006,8 @@ Ntuplizer::beginJob()
   outputTree->Branch("HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL",&HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL,"HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL/O");
   outputTree->Branch("HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL",&HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL,"HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL/O");
 
-  if(!IsMC_)outputTree->Branch("_l1FinalOR_BXmin1",&_l1FinalOR_BXmin1,"_l1FinalOR_BXmin1/O");
-  if(!IsMC_)outputTree->Branch("_l1FinalOR_BX0",&_l1FinalOR_BX0,"_l1FinalOR_BX0/O");
+  if(!IsMC_&&!IsL1ReEmul_)outputTree->Branch("_l1FinalOR_BXmin1",&_l1FinalOR_BXmin1,"_l1FinalOR_BXmin1/O");
+  if(!IsMC_&&!IsL1ReEmul_)outputTree->Branch("_l1FinalOR_BX0",&_l1FinalOR_BX0,"_l1FinalOR_BX0/O");
 
   if(Skim_=="L1Unprefirable" || Skim_==""){
   outputTree->Branch("_L1mu_Qual",&_L1mu_Qual);
@@ -3298,6 +3371,11 @@ void Ntuplizer::InitandClearStuff(){
   _phgenPhi.clear();
   _phgenPt.clear();
 
+  genpart_pt.clear();
+  genpart_eta.clear();
+  genpart_phi.clear();
+  genpart_pdgId.clear();
+  genpart_status.clear();
 
   _PFcand_pt.clear();
   _PFcand_eta.clear();
@@ -3368,6 +3446,11 @@ void Ntuplizer::InitandClearStuff(){
   _L1etsum_etm_phi.clear();
   _L1etsum_ettot.clear();
 
+  ecaleerechit_T.clear(); ecaleerechit_ix.clear(); ecaleerechit_iy.clear(); ecaleerechit_et.clear();ecaleerechit_Z.clear();ecaleerechit_R.clear();
+  ecaleerechit_eta.clear();ecaleerechit_phi.clear();
+
+  ecalebrechit_T.clear(); ecalebrechit_ieta.clear(); ecalebrechit_iphi.clear(); ecalebrechit_et.clear();ecalebrechit_Z.clear();ecalebrechit_R.clear();
+  ecalebrechit_eta.clear();ecalebrechit_phi.clear();
 
   HLT_Photon110EB_TightID_TightIso=false;
   HLT_Photon165_R9Id90_HE10_IsoM=false;
@@ -3499,7 +3582,7 @@ bool Ntuplizer::PassSkim(){
     else return false;
   }
   else if(Skim_=="HighHT") return (HLT_PFHT1050 || HLT_PFHT900 || HLT_PFJet500 || HLT_AK8PFJet500) ; 
-  else if(Skim_=="L1Unprefirable" ){
+  /*else if(Skim_=="L1Unprefirable" ){
     std::string str_run = std::to_string(_runNb);
     std::string str_lumi = std::to_string(_lumiBlock);
     std::string str_event = std::to_string(_eventNb);
@@ -3528,7 +3611,7 @@ bool Ntuplizer::PassSkim(){
     }
     //    else cout << "myfile_unprefevts.is_open() = false " << endl;
     return false;   
-  }
+  }*/
 
   else if(Skim_=="ZJetsResiduals" || Skim_=="GammaJetsResiduals"  ){
     
@@ -3890,6 +3973,12 @@ bool Ntuplizer::PassTrigger4L(){
   
   return false;
 
+}
+
+math::XYZPoint Ntuplizer::getPosition(const DetId &id, reco::Vertex::Point vtx, const CaloGeometry *geo){
+  const GlobalPoint& pos=geo->getPosition(id);
+  math::XYZPoint posV(pos.x() - vtx.x(),pos.y() - vtx.y(),pos.z() - vtx.z());
+  return posV;
 }
 
 //define this as a plug-in
