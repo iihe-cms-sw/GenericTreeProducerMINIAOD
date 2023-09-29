@@ -3,7 +3,7 @@ from time import strftime # for crabworkarea name
 config = config()
 
 config.General.requestName = 'THEREQUESTNAME'
-config.General.workArea = 'crabworkarea_' + strftime('%Y%b%d') # Year in decimal, month abreviation, day in decimal
+config.General.workArea = '../crabsubmission/crabworkarea_' + strftime('%Y%b%d') # Year in decimal, month abreviation, day in decimal
 config.General.transferOutputs = True
 config.General.transferLogs = True
 
@@ -35,7 +35,8 @@ config.Data.outputDatasetTag = 'CAMPAIGN_RUNERA_THESKIM'
 config.Data.partialDataset = True
 
 #Lumi mask to be applied
-config.Data.lumiMask = 'GoldenJSON_2016_2017_2018_2022.json'
+#config.Data.lumiMask = 'GoldenJSON_2016_2017_2018_2022.json'
+config.Data.lumiMask = 'GoldenJSON_2016_2017_2018_2022_2023.json'
 #If you want to store the output file on a EOS group folder: 
 #config.Data.outLFNDirBase = '/store/group/dpg_trigger/comm_trigger/L1Trigger/lathomas/Run3Commissioning'
 #config.Site.storageSite = 'T2_CH_CERN'

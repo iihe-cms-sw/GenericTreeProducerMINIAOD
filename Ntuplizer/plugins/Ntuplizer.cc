@@ -18,6 +18,7 @@
 #include "DataFormats/L1Trigger/interface/EGamma.h"
 #include "DataFormats/L1Trigger/interface/Jet.h"
 #include "DataFormats/L1Trigger/interface/EtSum.h"
+#include "DataFormats/L1Trigger/interface/Tau.h"
 #include "DataFormats/L1Trigger/interface/BXVector.h"
 #include "Geometry/CaloGeometry/interface/CaloGeometry.h"
 #include "Geometry/Records/interface/CaloGeometryRecord.h"
@@ -131,6 +132,7 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   virtual TString GetIdxFilterName(int it);
   virtual void InitandClearStuff();
   virtual void CalcDileptonInfo(const int& i, const int& j, Float_t & themass, Float_t & theptll, Float_t & thepzll,  Float_t & theyll, Float_t & thephill, Float_t & thedphill, Float_t & thecosthll);
+  virtual void CalcDiphotonInfo(const int& i, const int& j, Float_t & themass);
   virtual void CalcFourLeptonInfo(Float_t & themass, Float_t & theptll, Float_t & thepzll,  Float_t & theyll);
   virtual void CalcDileptonInfoGen(const int& i, const int& j, Float_t & themass, Float_t & theptll, Float_t & thepzll,  Float_t & theyll, Float_t & thephill, Float_t & thedphill, Float_t & thecosthll);
   virtual int GetRecoIdx(const reco::GenJet * genjet , vector <Float_t> recojetpt,  vector <Float_t> recojeteta, vector <Float_t> recojetphi, vector <Float_t> recojetptgen );
@@ -213,6 +215,7 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   const edm::ESGetToken<L1TUtmTriggerMenu, L1TUtmTriggerMenuRcd> l1GtMenuToken_;
   edm::EDGetTokenT<l1t::MuonBxCollection>l1MuonToken_;
   edm::EDGetTokenT<l1t::EGammaBxCollection>l1EGammaToken_;
+  edm::EDGetTokenT<l1t::TauBxCollection>l1TauToken_;
   edm::EDGetTokenT<l1t::JetBxCollection>l1JetToken_;
   edm::EDGetTokenT<l1t::EtSumBxCollection>l1EtSumToken_;
   edm::EDGetTokenT<GlobalExtBlkBxCollection> UnprefirableEventToken_;
@@ -481,6 +484,8 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   Float_t _phill;
   Float_t _costhCSll;
   Int_t _nElesll ;
+
+  Float_t _mgamgam;
   //For single photon studies
   Float_t _ptgamma;
   Float_t _phigamma;
@@ -610,7 +615,12 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   bool HLT_EphemeralPhysics;
 
   bool _l1FinalOR_BXmin1;
+  bool _l1FinalOR_noFirstBunchBeforeTrain_BXmin1;
+  bool _l1FinalORPreVeto_BXmin1;
+  bool _l1FinalORVeto_BXmin1;
   bool _l1FinalOR_BX0;
+  bool _l1FinalORPreVeto_BX0;
+  bool _l1FinalORVeto_BX0;
 
 
   //These are variables for a TTree where each entry is a jet and where one stores all PF cands
@@ -689,6 +699,13 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   //vector <int> _L1eg_isoet;  //not stored for unpacked objects, only relevant when analyzing reemulated objects. 
   //vector <int> _L1eg_ntt; //same remark
 
+  vector <Float_t> _L1tau_pt;
+  vector <Float_t> _L1tau_eta;
+  vector <Float_t> _L1tau_phi;
+  vector <int> _L1tau_bx;
+  vector <int> _L1tau_iso;
+
+
   //L1 jet
   vector <Float_t> _L1jet_pt;
   vector <Float_t> _L1jet_eta;
@@ -701,7 +718,9 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   Float_t l1jet_subleadingpt;
   Float_t l1eg_leadingpt;
   Float_t l1eg_subleadingpt;
-  
+  Float_t l1tau_leadingpt;
+  Float_t l1tau_subleadingpt;
+
   
   vector <Float_t> _L1etsum_etmhf;
   vector <Float_t> _L1etsum_etmhf_phi;
@@ -782,6 +801,7 @@ Ntuplizer::Ntuplizer(const edm::ParameterSet& iConfig)
   l1GtMenuToken_(esConsumes<L1TUtmTriggerMenu, L1TUtmTriggerMenuRcd>()),
   l1MuonToken_(consumes<l1t::MuonBxCollection>(iConfig.getParameter<edm::InputTag>("L1Muon"))),
   l1EGammaToken_(consumes<l1t::EGammaBxCollection>(iConfig.getParameter<edm::InputTag>("L1EGamma"))),
+  l1TauToken_(consumes<l1t::TauBxCollection>(iConfig.getParameter<edm::InputTag>("L1Tau"))),
   l1JetToken_(consumes<l1t::JetBxCollection>(iConfig.getParameter<edm::InputTag>("L1Jet"))),
   l1EtSumToken_(consumes<l1t::EtSumBxCollection>(iConfig.getParameter<edm::InputTag>("L1ETSum"))),
   UnprefirableEventToken_(consumes<GlobalExtBlkBxCollection>(edm::InputTag("simGtExtUnprefireable"))),
@@ -984,12 +1004,18 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
 
   edm::ESHandle<L1TUtmTriggerMenu> menu;
   menu = iSetup.getHandle(l1GtMenuToken_);
+  int idx_L1_FirstBunchBeforeTrain = -1;
+  //int idx_L1_FirstBunchInTrain = -1;
 
   for (auto const &keyval : menu->getAlgorithmMap()) {
     std::string const &name = keyval.second.getName();
     unsigned int index = keyval.second.getIndex();
     //    std::cerr << fmt::sprintf("bit %4d: %s", index, name) << std::endl;
     outputTree->SetAlias(name.c_str(), fmt::sprintf("passL1_Initial_bx0[%d]", index).c_str());
+    
+    if(name.find("L1_FirstBunchBeforeTrain")!=string::npos) idx_L1_FirstBunchBeforeTrain = index;
+    //if(name.find("L1_FirstBunchInTrain")!=string::npos) idx_L1_FirstBunchInTrain = index;
+    
   }
 
 
@@ -1005,13 +1031,31 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     }*/
 
   _l1FinalOR_BXmin1= false;
+  _l1FinalORPreVeto_BXmin1= false;  
+  _l1FinalORVeto_BXmin1= false;
   _l1FinalOR_BX0= false;
-  if(!IsMC_&&!IsL1ReEmul_)_l1FinalOR_BXmin1 = l1GtHandle->begin(-1)->getFinalOR();
+  _l1FinalORPreVeto_BX0= false;
+  _l1FinalORVeto_BX0= false;
+  _l1FinalOR_noFirstBunchBeforeTrain_BXmin1 = false;
+
+  if(!IsMC_&&!IsL1ReEmul_){
+    _l1FinalOR_BXmin1 = l1GtHandle->begin(-1)->getFinalOR();
+    _l1FinalORPreVeto_BXmin1 = l1GtHandle->begin(-1)->getFinalORPreVeto();
+    _l1FinalORVeto_BXmin1 = l1GtHandle->begin(-1)->getFinalORVeto();
+
+  }
   _l1FinalOR_BX0 = l1GtHandle->begin(0)->getFinalOR();
+  _l1FinalORPreVeto_BX0 = l1GtHandle->begin(0)->getFinalORPreVeto();
+  _l1FinalORVeto_BX0 = l1GtHandle->begin(0)->getFinalORVeto();
+
 
   for(int i =0; i <512; i++){
-    if(!IsMC_&&!IsL1ReEmul_) passL1_Initial_bxmin1[i]= l1GtHandle->begin(-1)->getAlgoDecisionInitial(i);
+    if(!IsMC_&&!IsL1ReEmul_){ 
+      passL1_Initial_bxmin1[i]= l1GtHandle->begin(-1)->getAlgoDecisionInitial(i);
+      if(i!=idx_L1_FirstBunchBeforeTrain) _l1FinalOR_noFirstBunchBeforeTrain_BXmin1 = _l1FinalOR_noFirstBunchBeforeTrain_BXmin1 || l1GtHandle->begin(-1)->getAlgoDecisionFinal(i);
+    }
     else passL1_Initial_bxmin1[i]= false;
+    
     passL1_Initial_bx0[i]= l1GtHandle->begin(0)->getAlgoDecisionInitial(i);
     passL1_Final_bx0[i]= l1GtHandle->begin(0)->getAlgoDecisionFinal(i);
     if(!IsMC_&&!IsL1ReEmul_) passL1_Initial_bxplus1[i]= l1GtHandle->begin(+1)->getAlgoDecisionInitial(i);
@@ -1056,6 +1100,7 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   for(int i = l1muoncoll->getFirstBX() ; i<= l1muoncoll->getLastBX() ;i++){
     for( l1t::MuonBxCollection::const_iterator l1muonit= l1muoncoll->begin(i); l1muonit != l1muoncoll->end(i) ; ++l1muonit){
       if(l1muonit->pt()<1) continue;
+      if(Skim_=="L1Study_DijetforJME"&&l1muonit->pt()<10)continue;
       _L1mu_Qual.push_back( l1muonit->hwQual() );
       _L1mu_pt.push_back( l1muonit->pt() );
       _L1mu_eta.push_back( l1muonit->eta() );
@@ -1086,6 +1131,7 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   for(int i = l1egcoll->getFirstBX() ; i<= l1egcoll->getLastBX() ;i++){
     for( l1t::EGammaBxCollection::const_iterator l1egit= l1egcoll->begin(i); l1egit != l1egcoll->end(i) ; ++l1egit){
       if(l1egit->pt()<5) continue;
+      if(Skim_=="L1Study_DijetforJME"&&l1egit->pt()<20)continue;
       _L1eg_pt.push_back( l1egit->pt() );
       _L1eg_eta.push_back( l1egit->eta() );
       _L1eg_phi.push_back( l1egit->phi() );
@@ -1108,6 +1154,29 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     }
   }
 
+  l1tau_leadingpt = 0;
+  l1tau_subleadingpt = 0;
+  edm::Handle<l1t::TauBxCollection> l1taucoll;
+  iEvent.getByToken(l1TauToken_ , l1taucoll);
+  for(int i = l1taucoll->getFirstBX() ; i<= l1taucoll->getLastBX() ;i++){
+    for( l1t::TauBxCollection::const_iterator l1tauit= l1taucoll->begin(i); l1tauit != l1taucoll->end(i) ; ++l1tauit){
+      if(l1tauit->pt()<5) continue;
+      if(Skim_=="L1Study_DijetforJME"&&l1tauit->pt()<25)continue;
+      _L1tau_pt.push_back( l1tauit->pt() );
+      _L1tau_eta.push_back( l1tauit->eta() );
+      _L1tau_phi.push_back( l1tauit->phi() );
+      _L1tau_bx.push_back( i);
+      _L1tau_iso.push_back( l1tauit->hwIso());
+      if(i==0){
+	if(l1tauit->pt() > l1tau_leadingpt){
+          l1tau_subleadingpt = l1tau_leadingpt ; l1tau_leadingpt = l1tauit->pt();
+        }
+        else if(l1tauit->pt() > l1tau_subleadingpt){ l1tau_subleadingpt = l1tauit->pt();}
+      }
+    }
+  }
+
+
 
   l1jet_leadingpt = 0;
   l1jet_subleadingpt = 0;
@@ -1117,6 +1186,8 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   for(int i = l1jetcoll->getFirstBX() ; i<= l1jetcoll->getLastBX() ;i++){
     for( l1t::JetBxCollection::const_iterator l1jetit= l1jetcoll->begin(i); l1jetit != l1jetcoll->end(i) ; ++l1jetit){
       if(l1jetit->pt()<20) continue;
+      if(Skim_=="L1Study_DijetforJME"&&l1jetit->pt()<50)continue;
+
       _L1jet_pt.push_back( l1jetit->pt() );
       _L1jet_eta.push_back( l1jetit->eta() );
       _L1jet_phi.push_back( l1jetit->phi() );
@@ -1528,6 +1599,17 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   else {_m4l=-1; _pt4l=-1; _pz4l=-1; _y4l =-1;}
   
 
+  _mgamgam=-1;
+  for(unsigned int i = 0; i < _phPt.size(); i++){
+    if(_phPt[i]<20 || !_phPassIso[i]) continue;
+    for(unsigned int j = 0; j < i; j++){
+      if(_phPt[j]<20 || !_phPassIso[j]) continue;
+      CalcDiphotonInfo(i, j, _mgamgam);
+      break;
+    }
+    if(_mgamgam>0) break;
+  }
+  
   //  if(!PassSkim()) return;
 
     
@@ -1763,6 +1845,9 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
       if(updatedgenjetwithnu !=0) jetptgenwithnu = updatedgenjetwithnu->pt() ;
 
       if(!PassJetPreselection((&*jet) , jetptgen , true) ) continue;
+
+
+      if(Skim_=="L1Study_DijetforJME" && (&*jet)->pt()<50) continue;
 
       if( genjet ==0   && DropUnmatchedJets_ && (&*jet)->pt()<50 ) continue;
       bool isleptoncleaned =IsLeptonPhotonCleaned ((&*jet) );
@@ -2319,7 +2404,13 @@ Ntuplizer::beginJob()
     outputTree->Branch("passL1_Initial_bxplus2",&passL1_Initial_bxplus2,"passL1_Initial_bxplus2[512]/O");
     outputTree->Branch("Flag_IsUnprefirable",&Flag_IsUnprefirable,"Flag_IsUnprefirable/O");
     outputTree->Branch("_l1FinalOR_BXmin1",&_l1FinalOR_BXmin1,"_l1FinalOR_BXmin1/O");
+    outputTree->Branch("_l1FinalOR_noFirstBunchBeforeTrain_BXmin1",&_l1FinalOR_noFirstBunchBeforeTrain_BXmin1,"_l1FinalOR_noFirstBunchBeforeTrain_BXmin1/O");
+    outputTree->Branch("_l1FinalORPreVeto_BXmin1",&_l1FinalORPreVeto_BXmin1,"_l1FinalORPreVeto_BXmin1/O");
+    outputTree->Branch("_l1FinalORVeto_BXmin1",&_l1FinalORVeto_BXmin1,"_l1FinalORVeto_BXmin1/O");
     outputTree->Branch("_l1FinalOR_BX0",&_l1FinalOR_BX0,"_l1FinalOR_BX0/O");
+    outputTree->Branch("_l1FinalORPreVeto_BX0",&_l1FinalORPreVeto_BX0,"_l1FinalORPreVeto_BX0/O");
+    outputTree->Branch("_l1FinalORVeto_BX0",&_l1FinalORVeto_BX0,"_l1FinalORVeto_BX0/O");
+
 
     outputTree->Branch("_L1etsum_etmhf", &_L1etsum_etmhf);
     outputTree->Branch("_L1etsum_etmhf_phi", &_L1etsum_etmhf_phi);
@@ -2356,6 +2447,13 @@ Ntuplizer::beginJob()
     outputTree->Branch("_L1eg_phi",&_L1eg_phi);
     outputTree->Branch("_L1eg_bx",&_L1eg_bx);
     outputTree->Branch("_L1eg_iso",&_L1eg_iso);
+    outputTree->Branch("_L1tau_pt",&_L1tau_pt);
+    outputTree->Branch("_L1tau_eta",&_L1tau_eta);
+    outputTree->Branch("_L1tau_phi",&_L1tau_phi);
+    outputTree->Branch("_L1tau_bx",&_L1tau_bx);
+    outputTree->Branch("_L1tau_iso",&_L1tau_iso);
+
+
     //outputTree->Branch("_L1eg_isoet",&_L1eg_isoet); //not stored for unpacked objects, only relevant when analyzing reemulated objects. 
     //outputTree->Branch("_L1eg_ntt",&_L1eg_ntt);//same remark
     outputTree->Branch("_L1jet_pt",&_L1jet_pt);
@@ -2388,8 +2486,15 @@ Ntuplizer::beginJob()
     outputTree->Branch("_LV_y", &_LV_y, "_LV_y/F");
     outputTree->Branch("_LV_z", &_LV_z, "_LV_z/F");
 
+
     outputTree->Branch("_l1FinalOR_BXmin1",&_l1FinalOR_BXmin1,"_l1FinalOR_BXmin1/O");
+    outputTree->Branch("_l1FinalOR_noFirstBunchBeforeTrain_BXmin1",&_l1FinalOR_noFirstBunchBeforeTrain_BXmin1,"_l1FinalOR_noFirstBunchBeforeTrain_BXmin1/O");
+    outputTree->Branch("_l1FinalORPreVeto_BXmin1",&_l1FinalORPreVeto_BXmin1,"_l1FinalORPreVeto_BXmin1/O");
+    outputTree->Branch("_l1FinalORVeto_BXmin1",&_l1FinalORVeto_BXmin1,"_l1FinalORVeto_BXmin1/O");
     outputTree->Branch("_l1FinalOR_BX0",&_l1FinalOR_BX0,"_l1FinalOR_BX0/O");
+    outputTree->Branch("_l1FinalORPreVeto_BX0",&_l1FinalORPreVeto_BX0,"_l1FinalORPreVeto_BX0/O");
+    outputTree->Branch("_l1FinalORVeto_BX0",&_l1FinalORVeto_BX0,"_l1FinalORVeto_BX0/O");
+
 
     outputTree->Branch("_lEta",&_lEta);
     outputTree->Branch("_lPhi",&_lPhi);
@@ -2422,7 +2527,7 @@ Ntuplizer::beginJob()
     outputTree->Branch("_phPassTightID",&_phPassTightID);
     outputTree->Branch("_phPassIso",&_phPassIso);
 
-    //outputTree->Branch("passL1_Initial_bxmin1",&passL1_Initial_bxmin1,"passL1_Initial_bxmin1[512]/O");
+    outputTree->Branch("passL1_Initial_bxmin1",&passL1_Initial_bxmin1,"passL1_Initial_bxmin1[512]/O");
     outputTree->Branch("passL1_Initial_bx0",&passL1_Initial_bx0,"passL1_Initial_bx0[512]/O");
     //outputTree->Branch("passL1_Initial_bxplus1",&passL1_Initial_bxplus1,"passL1_Initial_bxplus1[512]/O");
 
@@ -2442,12 +2547,16 @@ Ntuplizer::beginJob()
     outputTree->Branch("l1jet_subleadingpt", &l1jet_subleadingpt, "l1jet_subleadingpt/F");
     outputTree->Branch("l1eg_leadingpt", &l1eg_leadingpt, "l1eg_leadingpt/F");
     outputTree->Branch("l1eg_subleadingpt", &l1eg_subleadingpt, "l1eg_subleadingpt/F");
+    outputTree->Branch("l1tau_leadingpt", &l1tau_leadingpt, "l1tau_leadingpt/F");
+    outputTree->Branch("l1tau_subleadingpt", &l1tau_subleadingpt, "l1tau_subleadingpt/F");
 
     outputTree->Branch("_ptgamma", &_ptgamma, "_ptgamma/F");
     outputTree->Branch("_phigamma", &_phigamma, "_phigamma/F");
     outputTree->Branch("_mll", &_mll, "_mll/F");
     outputTree->Branch("_ptll", &_ptll, "_ptll/F");
     outputTree->Branch("_phill", &_phill, "_phill/F");
+
+    outputTree->Branch("_mgamgam", &_mgamgam, "_mgamgam/F");
 
     if(Skim_.find("ZTo") !=std::string::npos){
 
@@ -2460,7 +2569,7 @@ Ntuplizer::beginJob()
 
 
     
-    if(Skim_.find("ZToEE") !=std::string::npos){
+    if(Skim_.find("ZToEE") !=std::string::npos ){
     outputTree->Branch("_L1eg_pt",&_L1eg_pt);
     outputTree->Branch("_L1eg_eta",&_L1eg_eta);
     outputTree->Branch("_L1eg_phi",&_L1eg_phi);
@@ -2468,15 +2577,46 @@ Ntuplizer::beginJob()
     outputTree->Branch("_L1eg_iso",&_L1eg_iso);
     }
 
-
+  
     if(Skim_.find("JME") !=std::string::npos){
-    
-    outputTree->Branch("_L1jet_pt",&_L1jet_pt);
-    outputTree->Branch("_L1jet_eta",&_L1jet_eta);
-    outputTree->Branch("_L1jet_phi",&_L1jet_phi);
-    outputTree->Branch("_L1jet_bx",&_L1jet_bx);
-    }
+      
+      outputTree->Branch("_L1jet_pt",&_L1jet_pt);
+      outputTree->Branch("_L1jet_eta",&_L1jet_eta);
+      outputTree->Branch("_L1jet_phi",&_L1jet_phi);
+      outputTree->Branch("_L1jet_bx",&_L1jet_bx);
+      
+      outputTree->Branch("_L1eg_pt",&_L1eg_pt);
+      outputTree->Branch("_L1eg_eta",&_L1eg_eta);
+      outputTree->Branch("_L1eg_phi",&_L1eg_phi);
+      outputTree->Branch("_L1eg_bx",&_L1eg_bx);
+      outputTree->Branch("_L1eg_iso",&_L1eg_iso);
 
+      outputTree->Branch("_L1tau_pt",&_L1tau_pt);
+      outputTree->Branch("_L1tau_eta",&_L1tau_eta);
+      outputTree->Branch("_L1tau_phi",&_L1tau_phi);
+      outputTree->Branch("_L1tau_bx",&_L1tau_bx);
+      outputTree->Branch("_L1tau_iso",&_L1tau_iso);
+
+
+      if(IsMC_){
+	outputTree->Branch("_ptgamma_gen", &_ptgamma_gen, "_ptgamma_gen/F");
+	outputTree->Branch("_phigamma_gen", &_phigamma_gen, "_phigamma_gen/F");
+	outputTree->Branch("_phgenEta",&_phgenEta);
+	outputTree->Branch("_phgenPhi",&_phgenPhi);
+	outputTree->Branch("_phgenPt",&_phgenPt);
+
+	outputTree->Branch("_jetPtGen",&_jetPtGen);
+	outputTree->Branch("_jetEtaGen",&_jetEtaGen);
+	outputTree->Branch("_jetPhiGen",&_jetPhiGen);
+	outputTree->Branch("_genHT",&_genHT,"_genHT/F");
+
+	outputTree->Branch("_weight",&_weight,"_weight/F");
+
+
+      }
+      
+    }
+    
     outputTree->Branch("_L1etsum_etmhf", &_L1etsum_etmhf);
     outputTree->Branch("_L1etsum_etmhf_phi", &_L1etsum_etmhf_phi);
     outputTree->Branch("_L1etsum_mht", &_L1etsum_mht);
@@ -2572,12 +2712,14 @@ Ntuplizer::beginJob()
     outputTree->Branch("HLT_PixelClusters_WP2",&HLT_PixelClusters_WP2,"HLT_PixelClusters_WP2/O");
     outputTree->Branch("HLT_PixelClusters_WP2_split",&HLT_PixelClusters_WP2_split,"HLT_PixelClusters_WP2_split/O");
     outputTree->Branch("HLT_IsoMu24",&HLT_IsoMu24,"HLT_IsoMu24/O");
+
     outputTree->Branch("HLT_Ele32_WPTight_Gsf",&HLT_Ele32_WPTight_Gsf,"HLT_Ele32_WPTight_Gsf/O");
 
     outputTree->Branch("HLT_Mu50",&HLT_Mu50,"HLT_Mu50/O");
     outputTree->Branch("HLT_Mu50_L1SingleMuShower",&HLT_Mu50_L1SingleMuShower,"HLT_Mu50_L1SingleMuShower/O");
     
     outputTree->Branch("HLT_Photon200",&HLT_Photon200,"HLT_Photon200/O");
+    outputTree->Branch("HLT_AK8PFJet500",&HLT_AK8PFJet500,"HLT_AK8PFJet500/O");
 
     outputTree->Branch("HLT_PFMETNoMu120_PFMHTNoMu120_IDTight_PFHT60",&HLT_PFMETNoMu120_PFMHTNoMu120_IDTight_PFHT60,"HLT_PFMETNoMu120_PFMHTNoMu120_IDTight_PFHT60/O");
     outputTree->Branch("HLT_PFMETNoMu120_PFMHTNoMu120_IDTight",&HLT_PFMETNoMu120_PFMHTNoMu120_IDTight,"HLT_PFMETNoMu120_PFMHTNoMu120_IDTight/O");
@@ -3006,8 +3148,18 @@ Ntuplizer::beginJob()
   outputTree->Branch("HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL",&HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL,"HLT_Mu23_TrkIsoVVL_Ele12_CaloIdL_TrackIdL_IsoVL/O");
   outputTree->Branch("HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL",&HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL,"HLT_Mu8_TrkIsoVVL_Ele23_CaloIdL_TrackIdL_IsoVL/O");
 
-  if(!IsMC_&&!IsL1ReEmul_)outputTree->Branch("_l1FinalOR_BXmin1",&_l1FinalOR_BXmin1,"_l1FinalOR_BXmin1/O");
-  if(!IsMC_&&!IsL1ReEmul_)outputTree->Branch("_l1FinalOR_BX0",&_l1FinalOR_BX0,"_l1FinalOR_BX0/O");
+  if(!IsMC_&&!IsL1ReEmul_){
+ 
+
+  outputTree->Branch("_l1FinalOR_BXmin1",&_l1FinalOR_BXmin1,"_l1FinalOR_BXmin1/O");
+  outputTree->Branch("_l1FinalOR_noFirstBunchBeforeTrain_BXmin1",&_l1FinalOR_noFirstBunchBeforeTrain_BXmin1,"_l1FinalOR_noFirstBunchBeforeTrain_BXmin1/O");
+  outputTree->Branch("_l1FinalORPreVeto_BXmin1",&_l1FinalORPreVeto_BXmin1,"_l1FinalORPreVeto_BXmin1/O");
+  outputTree->Branch("_l1FinalORVeto_BXmin1",&_l1FinalORVeto_BXmin1,"_l1FinalORVeto_BXmin1/O");
+  outputTree->Branch("_l1FinalOR_BX0",&_l1FinalOR_BX0,"_l1FinalOR_BX0/O");
+  outputTree->Branch("_l1FinalORPreVeto_BX0",&_l1FinalORPreVeto_BX0,"_l1FinalORPreVeto_BX0/O");
+  outputTree->Branch("_l1FinalORVeto_BX0",&_l1FinalORVeto_BX0,"_l1FinalORVeto_BX0/O");
+  }
+ 
 
   if(Skim_=="L1Unprefirable" || Skim_==""){
   outputTree->Branch("_L1mu_Qual",&_L1mu_Qual);
@@ -3026,6 +3178,12 @@ Ntuplizer::beginJob()
   outputTree->Branch("_L1eg_phi",&_L1eg_phi);
   outputTree->Branch("_L1eg_bx",&_L1eg_bx);
   outputTree->Branch("_L1eg_iso",&_L1eg_iso);
+
+  outputTree->Branch("_L1tau_pt",&_L1tau_pt);
+  outputTree->Branch("_L1tau_eta",&_L1tau_eta);
+  outputTree->Branch("_L1tau_phi",&_L1tau_phi);
+  outputTree->Branch("_L1tau_bx",&_L1tau_bx);
+  outputTree->Branch("_L1tau_iso",&_L1tau_iso);
 
   outputTree->Branch("_L1jet_pt",&_L1jet_pt);
   outputTree->Branch("_L1jet_eta",&_L1jet_eta);
@@ -3424,6 +3582,13 @@ void Ntuplizer::InitandClearStuff(){
   _L1eg_phi.clear();
   _L1eg_bx.clear();
   _L1eg_iso.clear();
+
+  _L1tau_pt.clear();
+  _L1tau_eta.clear();
+  _L1tau_phi.clear();
+  _L1tau_bx.clear();
+  _L1tau_iso.clear();
+
   //_L1eg_isoet.clear();  //not stored for unpacked objects, only relevant when analyzing reemulated objects. 
   //_L1eg_ntt.clear(); //same remark
 
@@ -3540,13 +3705,22 @@ bool Ntuplizer::PassSkim(){
 
   if((Skim_=="L1Study_ZToMuMu" || Skim_=="L1Study_SingleMuforJME") && !HLT_IsoMu24) return false;
   if(Skim_=="L1Study_ZToEE"&&!HLT_Ele32_WPTight_Gsf) return false;
-  if(Skim_=="L1Study_SinglePhotonforJME"&& !HLT_Photon50_R9Id90_HE10_IsoM&& !HLT_Photon110EB_TightID_TightIso) return false;
-  
+  if(Skim_=="L1Study_SinglePhotonforJME" && !HLT_Photon110EB_TightID_TightIso) return false;
+  if(Skim_=="L1Study_DijetforJME"){
+    if(!HLT_AK8PFJet500) return false;
+    if(_jetPt.size()<2) return false;
+    if(_jetPt[1]<500) return false;
+    bool passcond = ((passL1_Initial_bx0[473]&&_runNb>=361468)||Flag_IsUnprefirable || _eventNb%10==0);
+    if(!passcond) return false;
+    
+    return true;
+  }
+
   if(Skim_=="ZToEEorMuMu" || Skim_=="Dilepton" || Skim_=="L1Study_ZToMuMu" || Skim_=="L1Study_ZToEE"){
 
 
     if(_mll>20&&Skim_=="Dilepton")  return true;
-    if(_mll>70&&_mll<110) return true;
+    if((_mll>70&&_mll<130) || (_mgamgam>70&&_mgamgam<130)) return true;
     return false;
   }
   else if(Skim_=="Photon" || Skim_=="L1Study_SinglePhotonforJME"){
@@ -3689,6 +3863,23 @@ Ntuplizer::CalcDileptonInfo(const int& i, const int& j, Float_t & themass, Float
 
 
 }
+
+
+void
+Ntuplizer::CalcDiphotonInfo(const int& i, const int& j, Float_t & themass){
+
+  TLorentzVector ph1;
+  TLorentzVector ph2;
+
+  Float_t et1 = (_phPt)[i];
+  Float_t et2 = (_phPt)[j];
+  ph1.SetPtEtaPhiE(et1, (_phEta)[i], (_phPhi)[i], (et1 * cosh((_phEta)[i])));
+  ph2.SetPtEtaPhiE(et2, (_phEta)[j], (_phPhi)[j], (et2 * cosh((_phEta)[j])));
+
+  themass = (ph1+ph2).Mag() ;
+
+}
+
 
 
  

@@ -3,9 +3,13 @@ reclusterGenJets = False
 usesqlitefiles = True
 iscrab = False
 
-skims = ['', 'MCJECs', 'ZJetsResiduals', 'MCJECs', 'HFJet', 'L1Unprefirable', 'L1Study', 'L1Study_ZToMuMu', 'L1Study_ZToEE', 'L1Study_SingleMuforJME', 'L1Studies_EphemeralHLTPhysics,', 'L1Studies_EphemeralZeroBias', 'L1Study_SinglePhotonforJME', 'FourLeptons', 'skimTriggerSOS']
+
+reapplyJECs = False
+runpatalgos = False
+
+skims = ['', 'MCJECs', 'ZJetsResiduals', 'MCJECs', 'HFJet', 'L1Unprefirable', 'L1Study', 'L1Study_ZToMuMu', 'L1Study_ZToEE', 'L1Study_SingleMuforJME', 'L1Studies_EphemeralHLTPhysics', 'L1Studies_EphemeralZeroBias', 'L1Study_SinglePhotonforJME', 'L1Study_DijetforJME', 'FourLeptons', 'skimTriggerSOS']
 eras = ['DataUL2016', 'DataUL2017', 'DataUL2018', 'DataRun3', 'MCUL2016', 'MCUL2017', 'MCUL2018', 'MCRun3']
-datasets = ['', 'SingleMuon', 'Muon', 'DoubleMuon', 'MuonEG', 'SingleElectron', 'SinglePhoton', 'DoubleEG', 'EGamma', 'JetHT', 'MET', 'JetMET', 'Tau', 'ZeroBias', 'HLTPhysics', 'EphemeralZeroBias', 'EphemeralHLTPhysics']
+datasets = ['', 'SingleMuon', 'Muon',  'Muon0', 'Muon1',  'DoubleMuon', 'MuonEG', 'SingleElectron', 'SinglePhoton', 'DoubleEG', 'EGamma', 'EGamma0', 'EGamma1', 'JetHT', 'MET', 'JetMET', 'JetMET0', 'JetMET1', 'Tau', 'ZeroBias', 'HLTPhysics', 'EphemeralZeroBias', 'EphemeralHLTPhysics']
 
 skim = ''
 runera = 'MCRun3'
@@ -49,8 +53,12 @@ if not find_runera:
     print("Undefined era")
     exit()
 
-#Make sure the skim exists
-if dataset not in datasets:
+#Make sure the dataset exists
+find_dataset = False
+for i in datasets: 
+    if i in dataset:
+        find_dataset = True
+if not find_dataset:
     print("Undefined dataset")
     exit()
 
@@ -76,9 +84,11 @@ if skim == "MCJECs":
 
 import FWCore.ParameterSet.Config as cms
 from Configuration.Eras.Era_Run3_cff import Run3
-process = cms.Process("Demo", Run3)
-#Just use process = cms.Process("Demo") for Run 2
 
+#process = cms.Process("Demo")
+#if "Run3" in runera:
+#    process = cms.Process("Demo", Run3)
+process = cms.Process("Demo", Run3)
 process.load("FWCore.MessageService.MessageLogger_cfi")
 process.MessageLogger.cerr.FwkReport.reportEvery = 1000
 
@@ -117,7 +127,10 @@ if reclusterCHSJets:
     chsJetCollectionName ="selectedPatJetsCHS"
 else: 
     chsJetCollectionName ="updatedPatJetsUpdatedJEC"
-    
+
+if not reapplyJECs:
+    chsJetCollectionName = "slimmedJets"
+
 
 if reclusterGenJets:
     GenJetCollectionName="ak4GenJetsNoNuNEW"
@@ -217,11 +230,11 @@ if "MCRun3" in runera:
     rochesterCorrectionFile+="RoccoR2018UL.txt"
 
 
-process.GlobalTag.globaltag="123X_dataRun3_Prompt_v12"
+#process.GlobalTag.globaltag="123X_dataRun3_Prompt_v12"
+process.GlobalTag.globaltag="130X_dataRun3_Prompt_v2"
 if "MC" in runera:
     process.GlobalTag.globaltag="123X_mcRun3_2021_realistic_v13"
-
-process.GlobalTag.globaltag="130X_mcRun3_2023_realistic_v7"
+    process.GlobalTag.globaltag="130X_mcRun3_2023_realistic_v7"
 
 print("Roch corr file: ")
 print(rochesterCorrectionFile)
@@ -255,6 +268,7 @@ process.ntuplizer = cms.EDAnalyzer('Ntuplizer',
                                    l1GtSrc = cms.InputTag("gtStage2Digis"),
                                    L1Muon = cms.InputTag("gmtStage2Digis","Muon","RECO"),
                                    L1EGamma = cms.InputTag("caloStage2Digis","EGamma","RECO"),
+                                   L1Tau = cms.InputTag("caloStage2Digis","Tau","RECO"),
                                    L1Jet = cms.InputTag("caloStage2Digis","Jet","RECO"),
                                    L1ETSum = cms.InputTag("caloStage2Digis","EtSum","RECO"),
                                    GenParticles=cms.InputTag("prunedGenParticles"),
@@ -284,10 +298,10 @@ process.ntuplizer = cms.EDAnalyzer('Ntuplizer',
                                    RochCorrFile=cms.string(rochesterCorrectionFile),
                                    PhotonPtCut=cms.double(5),
                                    PhotonTightWorkingPoint=cms.string(PhotonTightWP),
-                                   PFCandPtCut=cms.double(25000),
+                                   PFCandPtCut=cms.double(200000),
                                    SaveTree=cms.bool(True),
                                    IsMC=cms.bool(ismc),
-                                   IsL1ReEmul=cms.bool(True),
+                                   IsL1ReEmul=cms.bool(False),
                                    SaveTaus=cms.bool(False),
                                    SaveECALRH=cms.bool(False),
                                    SavePUIDVariables=cms.bool(False),
@@ -390,6 +404,21 @@ if skim == "L1Study_SingleMuforJME" or skim == "L1Study_SinglePhotonforJME":
     process.ntuplizer.DropUnmatchedJets=cms.bool(False)
     process.ntuplizer.DropBadJets=cms.bool(True)
     
+
+if skim == "L1Study_DijetforJME":
+    process.ntuplizer.JetPtCut=cms.double(50)
+    process.ntuplizer.AK8JetPtCut=cms.double(20000)
+    process.ntuplizer.PhotonPtCut=cms.double(50)
+    process.ntuplizer.ElectronPtCut=cms.double(20)
+    process.ntuplizer.MuonPtCut=cms.double(20)
+    process.ntuplizer.ApplyPhotonID=cms.bool(False)
+    process.ntuplizer.SaveAK8Jets=cms.bool(False)
+    process.ntuplizer.SaveCaloJets=cms.bool(False)
+    process.ntuplizer.SavenoCHSJets=cms.bool(False)
+    process.ntuplizer.DropUnmatchedJets=cms.bool(False)
+    process.ntuplizer.DropBadJets=cms.bool(False)
+
+
 #Rerunning the ecalbadcalibration filter
 from RecoMET.METFilters.ecalBadCalibFilter_cfi import ecalBadCalibFilter
 
@@ -457,7 +486,7 @@ import FWCore.ParameterSet.Types as CfgTypes
 process.source.lumisToProcess = CfgTypes.untracked(CfgTypes.VLuminosityBlockRange())
 
 
-JSONfile ='GoldenJSON_2016_2017_2018_2022.json'
+JSONfile ='GoldenJSON_2016_2017_2018_2022_2023.json'
 #JSONfile ='Cert_Fill8456.json'
 myLumis = LumiList.LumiList(filename = JSONfile).getCMSSWString().split(',')
 #if not ismc:
@@ -465,7 +494,7 @@ myLumis = LumiList.LumiList(filename = JSONfile).getCMSSWString().split(',')
 
 print( "json" )
 print( JSONfile )
-
+JECsVersion = ''
 if "MCUL2016APV" in runera:
     JECsVersion = 'Summer19UL16APV_V7_MC'
 if "MCUL2016nonAPV" in runera:
@@ -648,21 +677,24 @@ else:
 
 from PhysicsTools.PatAlgos.tools.jetTools import updateJetCollection
 
-updateJetCollection(
-    process,
-    jetSource = cms.InputTag('slimmedJets'),
-    labelName = 'UpdatedJEC',
-    jetCorrections = ('AK4PFchs', cms.vstring(['L1FastJet', 'L2Relative', 'L3Absolute', 'L2L3Residual']), 'None')  
-)
+if reapplyJECs: 
+    updateJetCollection(
+        process,
+        jetSource = cms.InputTag('slimmedJets'),
+        labelName = 'UpdatedJEC',
+        jetCorrections = ('AK4PFchs', cms.vstring(['L1FastJet', 'L2Relative', 'L3Absolute', 'L2L3Residual']), 'None')  
+    )
+    
+    updateJetCollection(
+        process,
+        jetSource = cms.InputTag('slimmedJetsPuppi'),
+        labelName = 'UpdatedJEC',
+        postfix = 'Puppi',
+        jetCorrections = ('AK4PFPuppi', cms.vstring(['L1FastJet', 'L2Relative', 'L3Absolute', 'L2L3Residual']), 'None') 
+    )
+    runpatalgos = True 
 
-updateJetCollection(
-    process,
-    jetSource = cms.InputTag('slimmedJetsPuppi'),
-    labelName = 'UpdatedJEC',
-    postfix = 'Puppi',
-    jetCorrections = ('AK4PFPuppi', cms.vstring(['L1FastJet', 'L2Relative', 'L3Absolute', 'L2L3Residual']), 'None') 
-)
-process.jecSequence = cms.Sequence(process.patJetCorrFactorsUpdatedJEC * process.updatedPatJetsUpdatedJEC * process.patJetCorrFactorsUpdatedJECPuppi * process.updatedPatJetsUpdatedJECPuppi)
+    process.jecSequence = cms.Sequence(process.patJetCorrFactorsUpdatedJEC * process.updatedPatJetsUpdatedJEC * process.patJetCorrFactorsUpdatedJECPuppi * process.updatedPatJetsUpdatedJECPuppi)
 
 
 #recluster gen jets
@@ -872,7 +904,8 @@ if ismc and reclusterGenJets:
 
 
 #You may want to comment out some of the following lines to speed things up
-process.ApplyPatAlgos  = cms.Path(process.patAlgosToolsTask)
+if runpatalgos :
+    process.ApplyPatAlgos  = cms.Path(process.patAlgosToolsTask)
 
 #process.rerunmetfilters = cms.Path( process.ecalBadCalibReducedMINIAOD2019Filter * process.ecalLaserCorrFilter * process.ecalDeadCellBoundaryEnergyFilterUpdate * process.BadChargedCandidateFilterUpdate ) 
 #process.computepuid = cms.Path(process.pileupJetIdUpdate  * process.pileupJetIdUpdate2017 * process.pileupJetIdUpdate2018)
