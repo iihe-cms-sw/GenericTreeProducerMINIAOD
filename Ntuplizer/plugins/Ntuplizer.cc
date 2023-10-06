@@ -673,6 +673,7 @@ class Ntuplizer : public edm::one::EDAnalyzer<edm::one::SharedResources,edm::one
   bool passL1_Initial_bxplus1[512];
   bool passL1_Initial_bxplus2[512];
   bool passL1_Final_bx0[512];
+  bool passL1_Final_bxmin1[512];
 
   bool passzb_bx0;
   bool passzb_bx1;
@@ -1012,6 +1013,7 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
     unsigned int index = keyval.second.getIndex();
     //    std::cerr << fmt::sprintf("bit %4d: %s", index, name) << std::endl;
     outputTree->SetAlias(name.c_str(), fmt::sprintf("passL1_Initial_bx0[%d]", index).c_str());
+    outputTree->SetAlias(name.c_str(), fmt::sprintf("passL1_Final_bxmin1[%d]", index).c_str());
     
     if(name.find("L1_FirstBunchBeforeTrain")!=string::npos) idx_L1_FirstBunchBeforeTrain = index;
     //if(name.find("L1_FirstBunchInTrain")!=string::npos) idx_L1_FirstBunchInTrain = index;
@@ -1052,9 +1054,13 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   for(int i =0; i <512; i++){
     if(!IsMC_&&!IsL1ReEmul_){ 
       passL1_Initial_bxmin1[i]= l1GtHandle->begin(-1)->getAlgoDecisionInitial(i);
+      passL1_Final_bxmin1[i]= l1GtHandle->begin(-1)->getAlgoDecisionFinal(i);
       if(i!=idx_L1_FirstBunchBeforeTrain) _l1FinalOR_noFirstBunchBeforeTrain_BXmin1 = _l1FinalOR_noFirstBunchBeforeTrain_BXmin1 || l1GtHandle->begin(-1)->getAlgoDecisionFinal(i);
     }
-    else passL1_Initial_bxmin1[i]= false;
+    else {
+      passL1_Initial_bxmin1[i]= false;
+      passL1_Final_bxmin1[i]=false;
+    }
     
     passL1_Initial_bx0[i]= l1GtHandle->begin(0)->getAlgoDecisionInitial(i);
     passL1_Final_bx0[i]= l1GtHandle->begin(0)->getAlgoDecisionFinal(i);
@@ -1186,7 +1192,7 @@ Ntuplizer::analyze(const edm::Event& iEvent, const edm::EventSetup& iSetup)
   for(int i = l1jetcoll->getFirstBX() ; i<= l1jetcoll->getLastBX() ;i++){
     for( l1t::JetBxCollection::const_iterator l1jetit= l1jetcoll->begin(i); l1jetit != l1jetcoll->end(i) ; ++l1jetit){
       if(l1jetit->pt()<20) continue;
-      if(Skim_=="L1Study_DijetforJME"&&l1jetit->pt()<50)continue;
+      //      if(Skim_=="L1Study_DijetforJME"&&l1jetit->pt()<30)continue;
 
       _L1jet_pt.push_back( l1jetit->pt() );
       _L1jet_eta.push_back( l1jetit->eta() );
@@ -2527,6 +2533,7 @@ Ntuplizer::beginJob()
     outputTree->Branch("_phPassTightID",&_phPassTightID);
     outputTree->Branch("_phPassIso",&_phPassIso);
 
+    outputTree->Branch("passL1_Final_bxmin1",&passL1_Final_bxmin1,"passL1_Final_bxmin1[512]/O");
     outputTree->Branch("passL1_Initial_bxmin1",&passL1_Initial_bxmin1,"passL1_Initial_bxmin1[512]/O");
     outputTree->Branch("passL1_Initial_bx0",&passL1_Initial_bx0,"passL1_Initial_bx0[512]/O");
     //outputTree->Branch("passL1_Initial_bxplus1",&passL1_Initial_bxplus1,"passL1_Initial_bxplus1[512]/O");
